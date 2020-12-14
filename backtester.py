@@ -10,6 +10,10 @@ import backtrader.analyzers as btanalyzers
 import strategies
 
 
+class DataCollectionError(Exception):
+    pass
+
+
 class Backtest:
     def __init__(
             self,
@@ -25,6 +29,7 @@ class Backtest:
         _path = f'exchanges.{exchange}'
         _exch = importlib.import_module(_path)
         self.exchange_api = getattr(_exch, f'{exchange[0].upper()}{exchange[1:]}API')()
+        self.exchange = exchange
         self.symbol = symbol
         self.start = start
         self.end = end
@@ -38,23 +43,28 @@ class Backtest:
         elif self.period.endswith('d'):
             _mult = 60*60*24
         self.period_secs = int(self.period[:-1])*_mult
+        self.df = None
 
 
     def dump_to_csv(self):
-        filename = binance_btcusdt_1m_20200101_20201201.csv
-        start = f'{self.start[0]}{self.start[1]}{self.start[2]}'
-        end = ''
+        self.start
+        _start = str(int(dt.datetime(*self.start).timestamp()))
+        _end = str(int(dt.datetime(*self.end).timestamp()))
         filename = (
             f'{self.exchange}_{self.symbol.lower()}_{self.period}'
-            f'{self}')
+            f'_{_start}_{_end}.csv')
+        self.df.to_csv(f'data/{filename}')
+
 
     def get_data(self):
         df_list = []
-        start_dt = dt.datetime(self.start[0], self.start[1], self.start[2])
+        self.start = self.start + [0 for i in range(len(self.start), 5)]
+        start_dt = dt.datetime(*self.start)
         if self.end is None:
             end_dt = None
         else:
-            end_dt = dt.datetime(self.end[0], self.end[1], self.end[2])
+            self.end = self.end + [0 for i in range(len(self.end), 5)]
+            end_dt = dt.datetime(*self.end)
         while True:
             _end_dt = dt.datetime.now() if end_dt is None else end_dt
             new_df = self.exchange_api.get_historical_candles(
@@ -71,18 +81,25 @@ class Backtest:
             if secs_til_end < self.period_secs*self.exchange_api.max_candles_fetch:
                 break
             start_dt = max(new_df.index) + dt.timedelta(0, 1)
-         
-        subprocess.call("clear")
-        print('Data collection done')
-        df = pd.concat(df_list)
-        df.shape
-        return df
 
+        self.end = [_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute]
+        subprocess.call("clear")
+        self.df = pd.concat(df_list)
+        print(f'Data collection finished. Dataframe dimensions: {self.df.shape}')
+        self.dump_to_csv()
+        return True
+
+
+    def load_local_data(self):
+        return False
 
     def run(self):
         cerebro = bt.Cerebro()
-         
-        data = bt.feeds.PandasData(dataname = self.get_data())
+
+        if self.load_local_data() or self.get_data():
+            data = bt.feeds.PandasData(dataname=self.df)
+        else:
+            raise DataCollectionError
         cerebro.adddata(data)
     
         start_cash = 1000000
@@ -113,10 +130,10 @@ def parse_args():
         "-i", "--instrument", type=str, default='BTCUSDT', help="Instrument symbol"
     )
     argp.add_argument(
-        "--start", type=int, default=[2020, 9, 1], nargs=3, help="Start of period"
+        "--start", type=int, default=[2020, 9, 1, 0, 0], nargs='*', help="Start of period"
     )
     argp.add_argument(
-        "--end", type=int, default=None, nargs=3, help="End of period"
+        "--end", type=int, default=None, nargs='*', help="End of period"
     )
     argp.add_argument(
         "-p", "--period", type=str, default='1m', help="Candle period"
