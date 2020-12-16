@@ -64,7 +64,7 @@ class Backtest:
         if self.end is None:
             end_dt = None
         else:
-            self.end = self.end + [0 for i in range(len(self.end), 5)]
+            self.end = self.end + tuple([0 for i in range(len(self.end), 5)])
             end_dt = dt.datetime(*self.end)
         while True:
             _end_dt = dt.datetime.now() if end_dt is None else end_dt
@@ -139,12 +139,11 @@ class Backtest:
 
     def run(self):
         if self.get_data():
-            #data = bt.feeds.PandasData(dataname=self.df)
             data = self.df
         else:
             raise DataCollectionError
 
-        self.strategy(self.df).run()
+        self.strategy(self.df, self.exchange_api).run()
 
 def parse_args():
     argp = argparse.ArgumentParser()
