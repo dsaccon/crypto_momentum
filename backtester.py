@@ -93,7 +93,7 @@ class Backtest:
     def load_local_data(self):
         return False
 
-    def run(self):
+    def run_backtrader(self):
         cerebro = bt.Cerebro()
 
         if self.load_local_data() or self.get_data():
@@ -117,6 +117,15 @@ class Backtest:
         print('number of trades:', len(back[0].analyzers.trans.get_analysis())) # Number of Trades
         cerebro.plot()
 
+
+    def run(self):
+        if self.load_local_data() or self.get_data():
+            #data = bt.feeds.PandasData(dataname=self.df)
+            data = self.df
+        else:
+            raise DataCollectionError
+
+        self.strategy(self.df).run()
 
 def parse_args():
     argp = argparse.ArgumentParser()
