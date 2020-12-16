@@ -5,6 +5,9 @@ import pandas as pd
 import numpy as np
 import btalib
 
+class SanityCheckError(Exception):
+    pass
+
 class BacktestingBaseClass:
 
     operator_lookup = {
@@ -14,8 +17,16 @@ class BacktestingBaseClass:
 
     def __init__(self, data):
         self.data = data
-        self.preprocess_data()
         self.trades = []
+        self.start_capital = 1000000
+        self.pnl = 0
+        self.position = 0
+        self.order_size = 1
+        self.cross_buy_open_col = ''
+        self.cross_buy_close_col = ''
+        self.cross_sell_open_col = ''
+        self.cross_sell_close_col = ''
+        self.preprocess_data()
 
     def preprocess_data(self):
         # Customizations to dataset happen here
@@ -40,45 +51,97 @@ class BacktestingBaseClass:
     def run(self):
         pass
 
+    def calc_pnl(self):
+        pass
+
 class WilliamsRPriceEMA(BacktestingBaseClass):
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.order_size = 10
+
     def preprocess_data(self):
-        # For Buy entry
+        # For Long entry
         self.data['willr_13'] = btalib.willr(self.data['high'], self.data['low'], self.data['close'], period = 13).df
         self.data['willr_13_ema'] = btalib.ema(self.data['willr_13'], period = 13).df
         self.data['willr_13_ema_prev'] = self.data['willr_13_ema'].shift(1)
         self.data['willr_50'] = btalib.willr(self.data['high'], self.data['low'], self.data['close'], period = 50).df
         self.data['willr_50_prev'] = self.data['willr_50'].shift(1)
         self.get_crosses('willr_13_ema', 'willr_50')
+        self.cross_buy_open_col = 'crossover:willr_13_ema-willr_50'
 
-        # For Buy close
+        # For Long close
         self.data['ema_13'] = btalib.ema(self.data['close'], period = 13).df
         self.data['ema_50'] = btalib.ema(self.data['close'], period = 50).df
         self.data['ema_13_prev'] = self.data['ema_13'].shift(1)
         self.data['ema_50_prev'] = self.data['ema_50'].shift(1)
         self.get_crosses('ema_13', 'ema_50', over=False)
+        self.cross_buy_close_col = 'crossunder:ema_13-ema_50'
 
-        # For Sell entry
+        # For Short entry
         self.get_crosses('willr_13_ema', 'willr_50', over=False)
+        self.cross_sell_open_col = 'crossunder:willr_13_ema-willr_50'
 
-        # For Sell close
+        # For Short close
         self.get_crosses('ema_13', 'ema_50')
-
-    def _create_triggers(self):
-        pass
+        self.cross_sell_close_col = 'crossover:ema_13-ema_50'
 
     def _crosses_sanity_check(self):
         #
         for col in self.data.columns.values.tolist():
             if col.startswith('cross'):
                 _list = pd.Series(self.data[col]).tolist()
-                print(f'{col}: ', (True in _list))
-                print(f'{col}: ', (False in _list))
-                print('')
+                if not True in _list:
+                    return False
+        return True
 
     def run(self):
-        self._crosses_sanity_check()
+        if not self._crosses_sanity_check():
+            raise SanityCheckError
+        for i, row in self.data.iterrows():
+            if self.position == 0 and row['close'] > row['ema_13']:
+                if row[self.cross_buy_open_col]:
+                    # Long entry
+                    self.trades.append(('Buy', 'Open', row['close']))
+                    self.position = self.order_size
+            elif self.position > 0 and row[self.cross_buy_close_col]:
+                    # Long close
+                    self.trades.append(('Sell', 'Close', row['close']))
+                    self.position = 0
+            if self.position == 0 and row['close'] < row['ema_13']:
+                if row[self.cross_sell_open_col]:
+                    # Short entry
+                    self.trades.append(('Sell', 'Open', row['close']))
+                    self.position = -self.order_size
+            elif self.position < 0 and row[self.cross_sell_close_col]:
+                    # Short close
+                    self.trades.append(('Sell', 'Close', row['close']))
+                    self.position = 0
+        self.calc_pnl()
+        print('pnl', self.pnl, 'num trades', len(self.trades), 'dataframe', self.data.shape) ### tmp
 
+    def calc_pnl(self):
+        position = 0
+        for trade in self.trades:
+            if position == 0:
+                if trade[1] == 'Open':
+                    if trade[0] == 'Buy':
+                        position = trade[2]
+                    if trade[0] == 'Sell':
+                        position = -trade[2]
+                else:
+                    raise SanityCheckError
+            else:
+                if trade[1] == 'Close':
+                    if trade[0] == 'Buy' and position < 0:
+                        # Short closing
+                        self.pnl += (position - trade[2])*self.order_size
+                    elif trade[0] == 'Sell' and position > 0:
+                        # Long closing
+                        self.pnl += (trade[2] - position)*self.order_size
+                    position = 0
+                else:
+                    raise SanityCheckError
 
 class MaCrossStrategy(bt.Strategy):
 
