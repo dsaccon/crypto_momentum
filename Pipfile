@@ -9,6 +9,7 @@ pandas = "*"
 requests = "*"
 backtrader = "*"
 matplotlib = "==3.2.2"
+bta-lib = "*"
 
 [dev-packages]
 
