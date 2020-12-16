@@ -15,8 +15,9 @@ class BacktestingBaseClass:
 	'<': operator.lt,
     }
 
-    def __init__(self, data):
+    def __init__(self, data, exchange=False):
         self.data = data
+        self.exchange = exchange
         self.trades = []
         self.start_capital = 1000000
         self.pnl = 0
@@ -26,11 +27,19 @@ class BacktestingBaseClass:
         self.cross_buy_close_col = ''
         self.cross_sell_open_col = ''
         self.cross_sell_close_col = ''
-        self.preprocess_data()
+        self.col_tags = {
+            'long_entry': tuple(),
+            'long_close': tuple(),
+            'short_entry': tuple(),
+            'short_close': tuple(),
+        }
 
     def preprocess_data(self):
         # Customizations to dataset happen here
-        pass
+        self.cross_buy_open_col = f"crossover:{self.col_tags['long_entry'][0]}-{self.col_tags['long_entry'][1]}"
+        self.cross_buy_close_col = f"crossunder:{self.col_tags['long_close'][0]}-{self.col_tags['long_close'][1]}"
+        self.cross_sell_open_col = f"crossunder:{self.col_tags['short_entry'][0]}-{self.col_tags['short_entry'][1]}"
+        self.cross_sell_close_col = f"crossover:{self.col_tags['short_close'][0]}-{self.col_tags['short_close'][1]}"
 
     def get_crosses(self, col_1, col_2, over=True):
         op = '>' if over else '<'
@@ -49,26 +58,55 @@ class BacktestingBaseClass:
                 else False, axis=1)
 
     def run(self):
-        pass
+        self.preprocess_data()
 
     def calc_pnl(self):
-        pass
+        fee = 1 - self.exchange.trading_fee
+        position = 0
+        for trade in self.trades:
+            if position == 0:
+                if trade[1] == 'Open':
+                    if trade[0] == 'Buy':
+                        position = trade[2]
+                    if trade[0] == 'Sell':
+                        position = -trade[2]
+                else:
+                    raise SanityCheckError
+            else:
+                if trade[1] == 'Close':
+                    if trade[0] == 'Buy' and position < 0:
+                        # Short closing
+                        self.pnl += (position - trade[2])*self.order_size*fee
+                    elif trade[0] == 'Sell' and position > 0:
+                        # Long closing
+                        self.pnl += (trade[2] - position)*self.order_size*fee
+                    position = 0
+                else:
+                    raise SanityCheckError
+
 
 class WilliamsRPriceEMA(BacktestingBaseClass):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.order_size = 10
+        self.col_tags = {
+            'long_entry': ('willr_13_ema', 'willr_50_ema'),
+            'long_close': ('ema_13', 'ema_50'),
+            'short_entry': ('willr_13_ema', 'willr_50_ema'),
+            'short_close': ('ema_13', 'ema_50'),
+        }
 
     def preprocess_data(self):
+        super().preprocess_data()
         # For Long entry
-        self.data['willr_13'] = btalib.willr(self.data['high'], self.data['low'], self.data['close'], period = 13).df
-        self.data['willr_13_ema'] = btalib.ema(self.data['willr_13'], period = 13).df
+        self.data['willr'] = btalib.willr(self.data['high'], self.data['low'], self.data['close'], period = 14).df
+        self.data['willr_13_ema'] = btalib.ema(self.data['willr'], period = 13).df
         self.data['willr_13_ema_prev'] = self.data['willr_13_ema'].shift(1)
-        self.data['willr_50'] = btalib.willr(self.data['high'], self.data['low'], self.data['close'], period = 50).df
-        self.data['willr_50_prev'] = self.data['willr_50'].shift(1)
-        self.get_crosses('willr_13_ema', 'willr_50')
-        self.cross_buy_open_col = 'crossover:willr_13_ema-willr_50'
+        self.data['willr_50_ema'] = btalib.ema(self.data['willr'], period = 50).df
+        self.data['willr_50_ema_prev'] = self.data['willr_50_ema'].shift(1)
+        self.get_crosses('willr_13_ema', 'willr_50_ema')
+#        self.cross_buy_open_col = 'crossover:willr_13_ema-willr_50_ema'
 
         # For Long close
         self.data['ema_13'] = btalib.ema(self.data['close'], period = 13).df
@@ -76,15 +114,15 @@ class WilliamsRPriceEMA(BacktestingBaseClass):
         self.data['ema_13_prev'] = self.data['ema_13'].shift(1)
         self.data['ema_50_prev'] = self.data['ema_50'].shift(1)
         self.get_crosses('ema_13', 'ema_50', over=False)
-        self.cross_buy_close_col = 'crossunder:ema_13-ema_50'
+#        self.cross_buy_close_col = 'crossunder:ema_13-ema_50'
 
         # For Short entry
-        self.get_crosses('willr_13_ema', 'willr_50', over=False)
-        self.cross_sell_open_col = 'crossunder:willr_13_ema-willr_50'
+        self.get_crosses('willr_13_ema', 'willr_50_ema', over=False)
+#        self.cross_sell_open_col = 'crossunder:willr_13_ema-willr_50_ema'
 
         # For Short close
         self.get_crosses('ema_13', 'ema_50')
-        self.cross_sell_close_col = 'crossover:ema_13-ema_50'
+#        self.cross_sell_close_col = 'crossover:ema_13-ema_50'
 
     def _crosses_sanity_check(self):
         #
@@ -96,6 +134,8 @@ class WilliamsRPriceEMA(BacktestingBaseClass):
         return True
 
     def run(self):
+        super().run()
+        #
         if not self._crosses_sanity_check():
             raise SanityCheckError
         for i, row in self.data.iterrows():
@@ -120,28 +160,6 @@ class WilliamsRPriceEMA(BacktestingBaseClass):
         self.calc_pnl()
         print('pnl', self.pnl, 'num trades', len(self.trades), 'dataframe', self.data.shape) ### tmp
 
-    def calc_pnl(self):
-        position = 0
-        for trade in self.trades:
-            if position == 0:
-                if trade[1] == 'Open':
-                    if trade[0] == 'Buy':
-                        position = trade[2]
-                    if trade[0] == 'Sell':
-                        position = -trade[2]
-                else:
-                    raise SanityCheckError
-            else:
-                if trade[1] == 'Close':
-                    if trade[0] == 'Buy' and position < 0:
-                        # Short closing
-                        self.pnl += (position - trade[2])*self.order_size
-                    elif trade[0] == 'Sell' and position > 0:
-                        # Long closing
-                        self.pnl += (trade[2] - position)*self.order_size
-                    position = 0
-                else:
-                    raise SanityCheckError
 
 class MaCrossStrategy(bt.Strategy):
 
