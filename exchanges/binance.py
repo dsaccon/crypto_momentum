@@ -1,19 +1,24 @@
+import os
 import datetime as dt
 import json
-import pandas as pd
 import requests
+import pandas as pd
 
 class ExchangeAPI:
     def __init__(self):
         self.base_uri = ''
         self.max_candles_fetch = None
         self.trading_fee = None
+        self.KEY = None
+        self.SECRET = None
 
 class BinanceAPI(ExchangeAPI):
     def __init__(self):
         self.base_uri = 'https://api.binance.com/api/v3/'
         self.max_candles_fetch = 1000
         self.trading_fee = 0.00075
+        self.KEY = os.environ['BINANCE_KEY']
+        self.SECRET = os.environ['BINANCE_SECRET']
 
     def get_historical_candles(self, symbol, interval, startTime, endTime):
 
