@@ -7,11 +7,13 @@ class ExchangeAPI:
     def __init__(self):
         self.base_uri = ''
         self.max_candles_fetch = None
+        self.trading_fee = None
 
 class BinanceAPI(ExchangeAPI):
     def __init__(self):
         self.base_uri = 'https://api.binance.com/api/v3/'
         self.max_candles_fetch = 1000
+        self.trading_fee = 0.00075
 
     def get_historical_candles(self, symbol, interval, startTime, endTime):
 
