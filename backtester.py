@@ -1,5 +1,6 @@
 import subprocess
 import json 
+import os
 import pandas as pd
 import datetime as dt
 import argparse
@@ -31,8 +32,11 @@ class Backtest:
         self.exchange_api = getattr(_exch, f'{exchange[0].upper()}{exchange[1:]}API')()
         self.exchange = exchange
         self.symbol = symbol
-        self.start = start
-        self.end = end
+        self.start = tuple(start)
+        self.start_ts = int(dt.datetime(*self.start).timestamp())
+        self.end = tuple(end) if end else end
+        if end:
+            self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
         self.period = period
         if self.period.endswith('s'):
             _mult = 1
@@ -47,18 +51,15 @@ class Backtest:
 
 
     def dump_to_csv(self):
-        self.start
-        _start = str(int(dt.datetime(*self.start).timestamp()))
-        _end = str(int(dt.datetime(*self.end).timestamp()))
         filename = (
             f'{self.exchange}_{self.symbol.lower()}_{self.period}'
-            f'_{_start}_{_end}.csv')
+            f'_{self.start_ts}_{self.end_ts}.csv')
         self.df.to_csv(f'data/{filename}')
 
 
     def get_data(self):
         df_list = []
-        self.start = self.start + [0 for i in range(len(self.start), 5)]
+        self.start = self.start + tuple([0 for i in range(len(self.start), 5)])
         start_dt = dt.datetime(*self.start)
         if self.end is None:
             end_dt = None
@@ -83,6 +84,7 @@ class Backtest:
             start_dt = max(new_df.index) + dt.timedelta(0, 1)
 
         self.end = [_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute]
+        self.end_ts = int(dt.datetime(*self.end).timestamp())
         subprocess.call("clear")
         self.df = pd.concat(df_list)
         print(f'Data collection finished. Dataframe dimensions: {self.df.shape}')
@@ -90,7 +92,24 @@ class Backtest:
         return True
 
 
-    def load_local_data(self):
+    def load_data(self):
+        filename_prefix = f'{self.exchange}_{self.symbol.lower()}_{self.period}'
+        files = [f for f in os.listdir('data/') if f.startswith(filename_prefix)]
+        files = [f for f in files if self.start_ts >= int(f.strip('.csv').split('_')[-2])]
+        best_file = files[0]
+        _end = self.end if self.end else int(dt.datetime.now().timestamp())
+        for f in files:
+            if _end > int(f.strip('.csv').split('_')[-2]):
+                csv_end = int(f.strip('.csv').split('_')[-1])
+            else:
+                csv_end = _end
+            _best = best_file.strip('.csv').split('_')
+            if csv_end - self.start_ts > int(_best[-1]) - int(_best[-2]):
+                best_file = f
+        return best_file
+
+
+    def load_csv(self):
         return False
 
     def run_backtrader(self):
@@ -119,7 +138,7 @@ class Backtest:
 
 
     def run(self):
-        if self.load_local_data() or self.get_data():
+        if self.get_data():
             #data = bt.feeds.PandasData(dataname=self.df)
             data = self.df
         else:
@@ -136,7 +155,7 @@ def parse_args():
         "-s", "--strategy", type=str, default='MaCrossStrategy', help="Strategy name"
     )
     argp.add_argument(
-        "-i", "--instrument", type=str, default='BTCUSDT', help="Instrument symbol"
+        "-i", "--instrument", "--symbol", type=str, default='BTCUSDT', help="Instrument symbol"
     )
     argp.add_argument(
         "--start", type=int, default=[2020, 9, 1, 0, 0], nargs='*', help="Start of period"
