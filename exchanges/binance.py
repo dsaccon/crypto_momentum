@@ -19,7 +19,6 @@ class BinanceAPI(ExchangeAPI):
         _uri = f'{self.base_uri}{endpoint}'
         startTime = str(int(startTime.timestamp() * 1000))
         endTime = str(int(endTime.timestamp() * 1000))
-#        limit = '1000'
 
         req_params = {
             'symbol' : symbol,
