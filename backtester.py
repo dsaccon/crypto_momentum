@@ -103,7 +103,7 @@ class Backtest:
                 ((_end_dt.timestamp() - start_dt.timestamp())/period[2]))
             print(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
             secs_til_end = _end_dt.timestamp() - start_dt.timestamp()
-            if secs_til_end < period[2]*self.exchange.max_candles_fetch:
+            if not self.exchange.max_candles_fetch or secs_til_end < period[2]*self.exchange.max_candles_fetch:
                 break
             start_dt = max(new_df.index) + dt.timedelta(seconds=period[2])
 
