@@ -124,7 +124,7 @@ class Backtest:
         while self.df[0].datetime.iloc[-1] > self.df[1].datetime.iloc[-1]:
             self.df[0].drop(self.df[0].tail(1).index, inplace=True)
 
-    def _clean_gaps(self):
+    def _check_gaps(self):
         """
         With multiple series, candle alignment can get thrown off with
         any gaps in the candles. This will clean the dataset to be able
@@ -143,7 +143,7 @@ class Backtest:
                 continue
             else:
                 # There are gaps
-                pass
+                raise DataCollectionError
 
     def get_data(self):
         # Fetch data from exchange
@@ -156,6 +156,7 @@ class Backtest:
             return True
         elif len(self.df) == 2:
             self._trim_dataframes()
+            #self._check_gaps()
         else:
             raise NotSupportedError
 
