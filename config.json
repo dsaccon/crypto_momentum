@@ -1,0 +1,44 @@
+{
+  "WillRBband_BTC_3m_60m": {
+    "series": [
+      [
+        "btcusdt",
+        "3m"
+      ],
+      [
+        "btcusdt",
+        "60m"
+      ]
+    ],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "symbol": "btcusdt"
+  },
+  "WillREma_BTC_60m": {
+    "series": [
+      [
+        "btcusdt",
+        "60m"
+      ]
+    ],
+    "exchange": "binance",
+    "strategy": "WillREma",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "symbol": "btcusdt"
+  }
+}
