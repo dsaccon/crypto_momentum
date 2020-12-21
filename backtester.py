@@ -95,8 +95,6 @@ class Backtest:
                 period[2],
                 start_dt,
                 _end_dt)
-#            print('min:', min(new_df.index), 'max:', max(new_df.index)) ### tmp
-#            print('start_dt', start_dt, 'end_dt', _end_dt) ### tmp
             df_list.append(new_df)
             subprocess.call("clear")
             remaining = int(
