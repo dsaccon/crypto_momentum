@@ -8,6 +8,7 @@ import hmac
 import requests
 import pandas as pd
 from binance.client import Client as BinanceClient
+from . import ExchangeAPI
 
 """
 order = client.create_test_order(symbol='BNBBTC', side='BUY', type='MARKET', quantity=1)
@@ -44,16 +45,16 @@ class BinanceRequestException(Exception):
         return 'BinanceRequestException: %s' % self.message
 
 
-class ExchangeAPI:
-    name = ''
-
-    def __init__(self):
-        self.base_uri = ''
-        self.max_candles_fetch = None
-        self.trading_fee = None
-        self.KEY = None
-        self.SECRET = None
-
+#$class ExchangeAPI:
+#$    name = ''
+#$
+#$    def __init__(self):
+#$        self.base_uri = ''
+#$        self.max_candles_fetch = None
+#$        self.trading_fee = None
+#$        self.KEY = None
+#$        self.SECRET = None
+#$
 
 class BinanceAPI(ExchangeAPI):
     name = 'binance'
