@@ -4,8 +4,9 @@ import os
 import pandas as pd
 import datetime as dt
 import argparse
-import matplotlib.pyplot as plt
 import importlib
+import concurrent.futures
+import matplotlib.pyplot as plt
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
 import strategies
@@ -15,49 +16,70 @@ class DataCollectionError(Exception):
     pass
 
 
+class NotSupportedError(Exception):
+    pass
+
+
 class Backtest:
-    def __init__(
-            self,
-            exchange,
-            strategy,
-            symbol,
-            start,
-            end,
-            period,
-            ):
+    def __init__(self, args):
+        self.run_name = args.name
 
-        self.strategy = getattr(strategies, strategy)
-        _path = f'exchanges.{exchange}'
-        _exch = importlib.import_module(_path)
-        self.exchange_api = getattr(_exch, f'{exchange[0].upper()}{exchange[1:]}API')()
-        self.exchange = exchange
-        self.symbol = symbol
-        self.start = tuple(start)
+        self._load_config()
+
+        # Overwrite config file settings from cli args
+        if args.symbol:
+            self.symbol = args.symbol
+            self.data_cfg = [[self.symbol, c[1]] for c in self.data_cfg]
+        self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
-        self.end = tuple(end) if end else end
-        if end:
-            self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
-        self.period = period
-        if self.period.endswith('s'):
-            _mult = 1
-        elif self.period.endswith('m'):
-            _mult = 60
-        elif self.period.endswith('h'):
-            _mult = 60*60
-        elif self.period.endswith('d'):
-            _mult = 60*60*24
-        self.period_secs = int(self.period[:-1])*_mult
-        self.df = None
+        if args.end is not False:
+            self.end = tuple(args.end) if args.end else args.end
+            if self.end:
+                self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
+        self.candle_period = args.period
 
+        for _cfg in self.data_cfg:
+            if _cfg[1].endswith('s'):
+                _mult = 1
+            elif _cfg[1].endswith('m'):
+                _mult = 60
+            elif _cfg[1].endswith('h'):
+                _mult = 60*60
+            elif _cfg[1].endswith('d'):
+                _mult = 60*60*24
+            _cfg.append(int(_cfg[1][:-1])*_mult)
+            #self.candle_period_secs = int(self.candle_period[:-1])*_mult
+        self.df = []
+
+    def _load_config(self):
+        with open('config.json', 'r') as f:
+            cfg = json.load(f)
+
+        self.strategy = getattr(strategies, cfg[self.run_name]['strategy'])
+        _exch = cfg[self.run_name]['exchange']
+        _path = f"exchanges.{_exch}"
+        _exch_obj = importlib.import_module(_path)
+        self.exchange = getattr(_exch_obj, f'{_exch[0].upper()}{_exch[1:]}API')()
+        self.symbol = cfg[self.run_name]['symbol']
+        self.start = tuple(cfg[self.run_name]['start'])
+        _end = cfg[self.run_name]['end']
+        self.end = tuple(_end) if _end else _end
+        if self.end:
+            self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
+        self.data_cfg = cfg[self.run_name]['series']
 
     def dump_to_csv(self):
-        filename = (
-            f'{self.exchange}_{self.symbol.lower()}_{self.period}'
-            f'_{self.start_ts}_{self.end_ts}.csv')
-        self.df.to_csv(f'data/{filename}')
+        for df in self.df:
+            for series in self.strategy.data_cfg:
+                filename = (
+                    f'{self.exchange}'
+                    f'_{self.symbol.lower()}'
+                    f'_{series[1]}'
+                    f'_{self.start_ts}_{self.end_ts}.csv')
+                df.to_csv(f'data/{filename}')
 
 
-    def get_data(self):
+    def _get_data(self, period):
         df_list = []
         self.start = self.start + tuple([0 for i in range(len(self.start), 5)])
         start_dt = dt.datetime(*self.start)
@@ -67,37 +89,84 @@ class Backtest:
             self.end = self.end + tuple([0 for i in range(len(self.end), 5)])
             end_dt = dt.datetime(*self.end)
         while True:
-            _end_dt = dt.datetime.now() if end_dt is None else end_dt
-            new_df = self.exchange_api.get_historical_candles(
+            _end_dt = dt.datetime.utcnow() if end_dt is None else end_dt
+            new_df = self.exchange.get_backtest_data(
                 self.symbol,
-                self.period,
+                period[2],
                 start_dt,
                 _end_dt)
+#            print('min:', min(new_df.index), 'max:', max(new_df.index)) ### tmp
+#            print('start_dt', start_dt, 'end_dt', _end_dt) ### tmp
             df_list.append(new_df)
             subprocess.call("clear")
             remaining = int(
-                ((_end_dt.timestamp() - start_dt.timestamp())/self.period_secs))
+                ((_end_dt.timestamp() - start_dt.timestamp())/period[2]))
             print(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
             secs_til_end = _end_dt.timestamp() - start_dt.timestamp()
-            if secs_til_end < self.period_secs*self.exchange_api.max_candles_fetch:
+            if secs_til_end < period[2]*self.exchange.max_candles_fetch:
                 break
-            start_dt = max(new_df.index) + dt.timedelta(0, 1)
+            start_dt = max(new_df.index) + dt.timedelta(seconds=period[2])
 
-        self.end = [_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute]
+        #self.end = [_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute]
+        self.end = (_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute)
         self.end_ts = int(dt.datetime(*self.end).timestamp())
         subprocess.call("clear")
-        self.df = pd.concat(df_list)
-        print(f'Data collection finished. Dataframe dimensions: {self.df.shape}')
+        self.df.append(pd.concat(df_list))
+        self.df[-1] = self.df[-1].reset_index(drop=True)
+        print(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
         self.dump_to_csv()
         return True
 
+    def _trim_dataframes(self):
+        # If more than one series, make sure final timestamps line up
 
-    def load_data(self):
-        filename_prefix = f'{self.exchange}_{self.symbol.lower()}_{self.period}'
+        # Note this assumes shorter interval series is index 0, longer is 1
+        while self.df[0].datetime.iloc[-1] > self.df[1].datetime.iloc[-1]:
+            self.df[0].drop(self.df[0].tail(1).index, inplace=True)
+
+    def _clean_gaps(self):
+        """
+        With multiple series, candle alignment can get thrown off with
+        any gaps in the candles. This will clean the dataset to be able
+        to skip over these gaps
+        """
+
+        for i, _df in enumerate(self.df):
+            shifted_col = _df.datetime.shift(1)
+            shifted_col.iloc[0] = shifted_col.iloc[1] - self.data_cfg[i][2]
+            time_deltas = _df.apply(
+                lambda r: True
+                if r.datetime - shifted_col.iloc[r.name] == self.data_cfg[i][2]
+                else False, axis=1)
+            if time_deltas.all():
+                # Data looks good
+                continue
+            else:
+                # There are gaps
+                pass
+
+    def get_data(self):
+        # Fetch data from exchange
+        for series in self.data_cfg:
+            if not self._get_data(series):
+                return False
+
+        # Clean data
+        if len(self.df) == 1:
+            return True
+        elif len(self.df) == 2:
+            self._trim_dataframes()
+        else:
+            raise NotSupportedError
+
+        return True
+
+    def load_data(self, symbol, period):
+        filename_prefix = f'{self.exchange.__name__}_{symbol.lower()}_{period}'
         files = [f for f in os.listdir('data/') if f.startswith(filename_prefix)]
         files = [f for f in files if self.start_ts >= int(f.strip('.csv').split('_')[-2])]
         best_file = files[0]
-        _end = self.end if self.end else int(dt.datetime.now().timestamp())
+        _end = self.end if self.end else int(dt.datetime.utcnow().timestamp())
         for f in files:
             if _end > int(f.strip('.csv').split('_')[-2]):
                 csv_end = int(f.strip('.csv').split('_')[-1])
@@ -143,27 +212,30 @@ class Backtest:
         else:
             raise DataCollectionError
 
-        self.strategy(self.df, self.exchange_api).run()
+        self.strategy(self.df, self.exchange).run()
 
 def parse_args():
     argp = argparse.ArgumentParser()
     argp.add_argument(
-        "-e", "--exchange", type=str, default='binance', help="Exchange"
+        "-n", "--name", type=str, default='default', help="Backtest name from config file"
     )
     argp.add_argument(
-        "-s", "--strategy", type=str, default='MaCrossStrategy', help="Strategy name"
+        "-e", "--exchange", type=str, default=None, help="Exchange"
     )
     argp.add_argument(
-        "-i", "--instrument", "--symbol", type=str, default='BTCUSDT', help="Instrument symbol"
+        "-s", "--strategy", type=str, default=None, help="Strategy name"
     )
     argp.add_argument(
-        "--start", type=int, default=[2020, 9, 1, 0, 0], nargs='*', help="Start of period"
+        "-i", "--symbol", "--instrument", type=str, default=None, help="Instrument symbol"
     )
     argp.add_argument(
-        "--end", type=int, default=None, nargs='*', help="End of period"
+        "--start", type=int, default=None, nargs='*', help="Start of period"
     )
     argp.add_argument(
-        "-p", "--period", type=str, default='1m', help="Candle period"
+        "--end", type=int, default=False, nargs='*', help="End of period"
+    )
+    argp.add_argument(
+        "-p", "--period", type=str, default=None, help="Candle period/interval"
     )
 
     args = argp.parse_args()
@@ -172,11 +244,4 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    Backtest(
-        args.exchange,
-        args.strategy,
-        args.instrument,
-        args.start,
-        args.end,
-        args.period,
-    ).run()
+    Backtest(args).run()
