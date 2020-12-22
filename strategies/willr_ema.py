@@ -74,6 +74,6 @@ class WillREma(BacktestingBaseClass):
         self.calc_pnl()
         print(
             'pnl', self.pnl,
-            f'{round((self.pnl/self.start_capital)*100, 2)}%',
+            f'{round((self.pnl/self.cfg["start_capital"])*100, 2)}%',
             'num trades', len(self.trades),
             'dataframe', self.data[0].shape)
