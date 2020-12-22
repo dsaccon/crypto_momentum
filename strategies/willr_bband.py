@@ -78,7 +78,6 @@ class WillRBband(BacktestingBaseClass):
         if not self._crosses_sanity_check():
             raise SanityCheckError
         processed_rows = 0
-        skipped_rows = 0
         for i_3m, row_0 in self.data[0].iterrows(): # iterate over 3m series
             #if i_3m % 20 == 0:
             #row_1 = self.data[1].iloc[int(i_3m/20)] # corresponding 60m row
@@ -90,8 +89,6 @@ class WillRBband(BacktestingBaseClass):
                     row_1.isna().willr_ema.iloc[0],
                     row_1.isna().willr_ema_prev.iloc[0]]):
                 # Skip first row before 60m' first candle
-                print(f'Skipping {row_1.datetime.iloc[0]}')
-                skipped_rows += 1
                 continue
             processed_rows += 1
             close = self._execute_trade(row_0, row_1)
@@ -121,10 +118,9 @@ class WillRBband(BacktestingBaseClass):
 
         print('--', self.trades)
         print('Processed rows', processed_rows)
-        print('Skipped rows', skipped_rows)
         self.calc_pnl()
         print(
             'pnl', self.pnl, 'ending capital', self.end_capital,
-            f'{round((self.pnl/self.start_capital)*100, 2)}%',
+            f'{round((self.pnl/self.cfg["start_capital"])*100, 2)}%',
             'num trades', len(self.trades),
             'dataframe', self.data[0].shape)
