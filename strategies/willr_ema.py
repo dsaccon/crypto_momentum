@@ -23,17 +23,17 @@ class WillREma(BacktestingBaseClass):
         super().preprocess_data()
 
         # For Long entry
-        self.data[0]['willr'] = btalib.willr(self.data[0]['high'], self.data[0]['low'], self.data[0]['close'], period = 14).df
-        self.data[0]['willr_13_ema'] = btalib.ema(self.data[0]['willr'], period = 13).df
+        self.data[0]['willr'] = btalib.willr(self.data[0]['high'], self.data[0]['low'], self.data[0]['close'], period=14).df
+        self.data[0]['willr_13_ema'] = btalib.ema(self.data[0]['willr'], period=13, _seed=3).df
         self.data[0]['willr_13_ema_prev'] = self.data[0]['willr_13_ema'].shift(1)
-        self.data[0]['willr_50_ema'] = btalib.ema(self.data[0]['willr'], period = 50).df
+        self.data[0]['willr_50_ema'] = btalib.ema(self.data[0]['willr'], period=50, _seed=3).df
         self.data[0]['willr_50_ema_prev'] = self.data[0]['willr_50_ema'].shift(1)
         self.get_crosses('willr_13_ema', 'willr_50_ema', 0)
 #        self.cross_buy_open_col = 'crossover:willr_13_ema-willr_50_ema'
 
         # For Long close
-        self.data[0]['ema_13'] = btalib.ema(self.data[0]['close'], period = 13).df
-        self.data[0]['ema_50'] = btalib.ema(self.data[0]['close'], period = 50).df
+        self.data[0]['ema_13'] = btalib.ema(self.data[0]['close'], period=13, _seed=3).df
+        self.data[0]['ema_50'] = btalib.ema(self.data[0]['close'], period=50, _seed=3).df
         self.data[0]['ema_13_prev'] = self.data[0]['ema_13'].shift(1)
         self.data[0]['ema_50_prev'] = self.data[0]['ema_50'].shift(1)
         self.get_crosses('ema_13', 'ema_50', 0, over=False)
