@@ -59,7 +59,7 @@ class Backtest:
         _exch = cfg[self.run_name]['exchange']
         _path = f"exchanges.{_exch}"
         _exch_obj = importlib.import_module(_path)
-        self.exchange = getattr(_exch_obj, f'{_exch[0].upper()}{_exch[1:]}API')()
+        self.exchange_obj = getattr(_exch_obj, f'{_exch[0].upper()}{_exch[1:]}API')()
         self.symbol = cfg[self.run_name]['symbol']
         self.start = tuple(cfg[self.run_name]['start'])
         _end = cfg[self.run_name]['end']
@@ -68,12 +68,13 @@ class Backtest:
         if self.end:
             self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
         self.data_cfg = cfg[self.run_name]['series']
+        self.trading_cfg = cfg[self.run_name]
 
     def dump_to_csv(self):
         for df in self.df:
             for series in self.strategy.data_cfg:
                 filename = (
-                    f'{self.exchange}'
+                    f'{self.exchange_obj}'
                     f'_{self.symbol.lower()}'
                     f'_{series[1]}'
                     f'_{self.start_ts}_{self.end_ts}.csv')
@@ -91,7 +92,7 @@ class Backtest:
             end_dt = dt.datetime(*self.end)
         while True:
             _end_dt = dt.datetime.utcnow() if end_dt is None else end_dt
-            new_df = self.exchange.get_backtest_data(
+            new_df = self.exchange_obj.get_backtest_data(
                 self.symbol,
                 period[2],
                 start_dt,
@@ -102,7 +103,7 @@ class Backtest:
                 ((_end_dt.timestamp() - start_dt.timestamp())/period[2]))
             print(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
             secs_til_end = _end_dt.timestamp() - start_dt.timestamp()
-            if not self.exchange.max_candles_fetch or secs_til_end < period[2]*self.exchange.max_candles_fetch:
+            if not self.exchange_obj.max_candles_fetch or secs_til_end < period[2]*self.exchange_obj.max_candles_fetch:
                 break
             start_dt = max(new_df.index) + dt.timedelta(seconds=period[2])
 
@@ -162,7 +163,7 @@ class Backtest:
         return True
 
     def load_data(self, symbol, period):
-        filename_prefix = f'{self.exchange.__name__}_{symbol.lower()}_{period}'
+        filename_prefix = f'{self.exchange_obj.__name__}_{symbol.lower()}_{period}'
         files = [f for f in os.listdir('data/') if f.startswith(filename_prefix)]
         files = [f for f in files if self.start_ts >= int(f.strip('.csv').split('_')[-2])]
         best_file = files[0]
@@ -212,7 +213,7 @@ class Backtest:
         else:
             raise DataCollectionError
 
-        self.strategy(self.df, self.exchange, start_capital=self.start_capital).run()
+        self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
 
 def parse_args():
     argp = argparse.ArgumentParser()
