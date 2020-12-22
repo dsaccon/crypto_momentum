@@ -64,6 +64,7 @@ class Backtest:
         self.start = tuple(cfg[self.run_name]['start'])
         _end = cfg[self.run_name]['end']
         self.end = tuple(_end) if _end else _end
+        self.start_capital = cfg[self.run_name]['start_capital']
         if self.end:
             self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
         self.data_cfg = cfg[self.run_name]['series']
@@ -211,7 +212,7 @@ class Backtest:
         else:
             raise DataCollectionError
 
-        self.strategy(self.df, self.exchange).run()
+        self.strategy(self.df, self.exchange, start_capital=self.start_capital).run()
 
 def parse_args():
     argp = argparse.ArgumentParser()
