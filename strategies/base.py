@@ -19,12 +19,11 @@ class BacktestingBaseClass:
 	'<': operator.lt,
     }
 
-    def __init__(self, data, exchange, start_capital=10000):
+    def __init__(self, data, exch_obj, cfg):
         self.data = data
-#        self.data = [df.reset_index(drop=True) for df in self.data]
-        self.exchange = exchange
+        self.cfg = cfg
+        self.exchange = exch_obj
         self.trades = []
-        self.start_capital = start_capital
         self.pnl = 0
         self.position = 0
         self.cross_buy_open_col = ''
@@ -68,7 +67,7 @@ class BacktestingBaseClass:
     def calc_pnl(self):
         fee = 1 - self.exchange.trading_fee
         position = 0
-        balance = self.start_capital
+        balance = self.cfg['start_capital']
         for trade in self.trades:
             if position == 0:
                 if trade[1] == 'Open':
@@ -92,7 +91,7 @@ class BacktestingBaseClass:
                 else:
                     raise SanityCheckError
         self.end_capital = balance
-        self.pnl = self.end_capital - self.start_capital
+        self.pnl = self.end_capital - self.cfg['start_capital']
 
     def _crosses_sanity_check(self):
         #
