@@ -20,6 +20,31 @@
       0
     ],
     "end": null,
+		"start_capital": 10000,
+    "symbol": "btcusdt"
+  },
+  "WillRBbandCrossMod_BTC_3m_60m": {
+    "series": [
+      [
+        "btcusdt",
+        "3m"
+      ],
+      [
+        "btcusdt",
+        "60m"
+      ]
+    ],
+    "exchange": "binance",
+    "strategy": "WillRBbandCrossMod",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+		"start_capital": 10000,
     "symbol": "btcusdt"
   },
   "WillREma_BTC_60m": {
@@ -39,6 +64,7 @@
       0
     ],
     "end": null,
+		"start_capital": 10000,
     "symbol": "btcusdt"
   }
 }
