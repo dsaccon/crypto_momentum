@@ -112,7 +112,8 @@ class Backtest:
         self.end_ts = int(dt.datetime(*self.end).timestamp())
         subprocess.call("clear")
         self.df.append(pd.concat(df_list))
-        self.df[-1] = self.df[-1].reset_index(drop=True)
+        #self.df[-1] = self.df[-1].reset_index(drop=True)
+        self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
         print(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
         self.dump_to_csv()
         return True
@@ -123,14 +124,19 @@ class Backtest:
             self.df.append(pd.read_csv(f'data/{f}'))
             cols = self.df[-1].columns.values.tolist()
             for i, col in enumerate(cols):
+                # Normalize col names
                 if not col == expected_cols[i]:
                     self.df[-1].rename(columns={col: expected_cols[i]}, inplace=True)
+            # Adjust datetimes to 10 digit epoch
+            dt_col = self.df[-1]['datetime']/1000
+            self.df[-1]['datetime'] = dt_col.astype(int)
+            self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
 
     def _trim_dataframes(self):
         # If more than one series, make sure final timestamps line up
 
         # Note this assumes shorter interval series is index 0, longer is 1
-        while self.df[0].datetime.iloc[-1] > self.df[1].datetime.iloc[-1]:
+        while self.df[0].index[-1] > self.df[1].index[-1]:
             self.df[0].drop(self.df[0].tail(1).index, inplace=True)
 
     def _check_gaps(self):
@@ -172,7 +178,7 @@ class Backtest:
         if len(self.df) == 1:
             return True
         elif len(self.df) == 2:
-            self._trim_dataframes()
+            #self._trim_dataframes()
             #self._check_gaps()
         else:
             raise NotSupportedError
