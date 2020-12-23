@@ -27,6 +27,7 @@ class Backtest:
         self._load_config()
 
         # Overwrite config file settings from cli args
+        self.csv_file = args.file
         if args.symbol:
             self.symbol = args.symbol
             self.data_cfg = [[self.symbol, c[1]] for c in self.data_cfg]
@@ -59,7 +60,8 @@ class Backtest:
         _exch = cfg[self.run_name]['exchange']
         _path = f"exchanges.{_exch}"
         _exch_obj = importlib.import_module(_path)
-        self.exchange_obj = getattr(_exch_obj, f'{_exch[0].upper()}{_exch[1:]}API')()
+        self.exchange_cls = getattr(_exch_obj, f'{_exch[0].upper()}{_exch[1:]}API')
+        self.exchange_obj = self.exchange_cls()
         self.symbol = cfg[self.run_name]['symbol']
         self.start = tuple(cfg[self.run_name]['start'])
         _end = cfg[self.run_name]['end']
@@ -71,17 +73,15 @@ class Backtest:
         self.trading_cfg = cfg[self.run_name]
 
     def dump_to_csv(self):
-        for df in self.df:
-            for series in self.strategy.data_cfg:
-                filename = (
-                    f'{self.exchange_obj}'
-                    f'_{self.symbol.lower()}'
-                    f'_{series[1]}'
-                    f'_{self.start_ts}_{self.end_ts}.csv')
-                df.to_csv(f'data/{filename}')
+        i = len(self.df) - 1
+        filename = (
+            f'{self.exchange_cls.__name__}'
+            f'_{self.symbol.lower()}'
+            f'_{self.data_cfg[i][1]}'
+            f'_{self.start_ts}_{self.end_ts}.csv')
+        self.df[i].to_csv(f'data/{filename}')
 
-
-    def _get_data(self, period):
+    def _get_data_api(self, period):
         df_list = []
         self.start = self.start + tuple([0 for i in range(len(self.start), 5)])
         start_dt = dt.datetime(*self.start)
@@ -117,6 +117,15 @@ class Backtest:
         self.dump_to_csv()
         return True
 
+    def _get_data_csv(self):
+        expected_cols = ['datetime', 'open', 'high', 'low', 'close']
+        for f in self.csv_file:
+            self.df.append(pd.read_csv(f'data/{f}'))
+            cols = self.df[-1].columns.values.tolist()
+            for i, col in enumerate(cols):
+                if not col == expected_cols[i]:
+                    self.df[-1].rename(columns={col: expected_cols[i]}, inplace=True)
+
     def _trim_dataframes(self):
         # If more than one series, make sure final timestamps line up
 
@@ -147,9 +156,17 @@ class Backtest:
 
     def get_data(self):
         # Fetch data from exchange
-        for series in self.data_cfg:
-            if not self._get_data(series):
-                return False
+        if self.csv_file is None:
+            for series in self.data_cfg:
+                if not self._get_data_api(series):
+                    return False
+        else:
+            if not len(self.data_cfg) == len(self.csv_file):
+                print(f'Number of csv files provided should be {len(self.data_cfg)}')
+                print(self.data_cfg)
+                print(self.csv_file)
+                raise ValueError
+            self._get_data_csv()
 
         # Clean data
         if len(self.df) == 1:
@@ -162,8 +179,9 @@ class Backtest:
 
         return True
 
-    def load_data(self, symbol, period):
-        filename_prefix = f'{self.exchange_obj.__name__}_{symbol.lower()}_{period}'
+    def _get_best_csv(self, symbol, period):
+        # Figures out which csv file has the biggest range of data in desired range
+        filename_prefix = f'{self.exchange_cls.__name__}_{symbol.lower()}_{period}'
         files = [f for f in os.listdir('data/') if f.startswith(filename_prefix)]
         files = [f for f in files if self.start_ts >= int(f.strip('.csv').split('_')[-2])]
         best_file = files[0]
@@ -178,9 +196,16 @@ class Backtest:
                 best_file = f
         return best_file
 
-
     def load_csv(self):
         return False
+
+    def run(self):
+        if self.get_data():
+            data = self.df
+        else:
+            raise DataCollectionError
+
+        self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
 
     def run_backtrader(self):
         cerebro = bt.Cerebro()
@@ -207,14 +232,6 @@ class Backtest:
         cerebro.plot()
 
 
-    def run(self):
-        if self.get_data():
-            data = self.df
-        else:
-            raise DataCollectionError
-
-        self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
-
 def parse_args():
     argp = argparse.ArgumentParser()
     argp.add_argument(
@@ -237,6 +254,9 @@ def parse_args():
     )
     argp.add_argument(
         "-p", "--period", type=str, default=None, help="Candle period/interval"
+    )
+    argp.add_argument(
+        "-f", "--file", type=str, default=None, nargs='*', help="Filename(s) within data/"
     )
 
     args = argp.parse_args()
