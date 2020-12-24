@@ -97,7 +97,7 @@ class WillRBband(BacktestingBaseClass):
 #                # Skip first row before 60m' first candle
 #                continue
 #            processed_rows += 1
-            if self._execute_trade(row)
+            if self._execute_trade(row):
                 # If a position was closed in this candle, check to re-open new position
                 self._execute_trade(row)
 
