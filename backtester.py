@@ -79,6 +79,8 @@ class Backtest:
             f'_{self.symbol.lower()}'
             f'_{self.data_cfg[i][1]}'
             f'_{self.start_ts}_{self.end_ts}.csv')
+        if not os.path.exists('data/'):
+            os.mkdir('data/')
         self.df[i].to_csv(f'data/{filename}')
 
     def _get_data_api(self, period):
