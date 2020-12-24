@@ -130,10 +130,13 @@ class Backtest:
                 if not col == expected_cols[i]:
                     self.df[-1].rename(columns={col: expected_cols[i]}, inplace=True)
             # Adjust datetimes to 10 digit epoch
-            if int(len(str(self.df[-1]['datetime'][0]))) == 10:
+            if len(str(int(self.df[-1]['datetime'][0]))) == 10:
                 dt_col = self.df[-1]['datetime']
-            elif int(len(str(self.df[-1]['datetime'][0]))) == 13:
+            elif len(str(int(self.df[-1]['datetime'][0]))) == 13:
                 dt_col = self.df[-1]['datetime']/1000
+            else:
+                print('Something not right with datetime values')
+                raise ValueError
 #            dt_col = self.df[-1]['datetime']/1000
             self.df[-1]['datetime'] = dt_col.astype(int)
             self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
