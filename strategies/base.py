@@ -70,21 +70,21 @@ class BacktestingBaseClass:
         balance = self.cfg['start_capital']
         for trade in self.trades:
             if position == 0:
-                if trade[1] == 'Open':
-                    if trade[0] == 'Buy':
-                        position = trade[2]
-                    if trade[0] == 'Sell':
-                        position = -trade[2]
+                if trade[2] == 'Open':
+                    if trade[1] == 'Long':
+                        position = trade[3]
+                    if trade[1] == 'Short':
+                        position = -trade[3]
                 else:
                     raise SanityCheckError
             else:
-                if trade[1] == 'Close':
-                    if trade[0] == 'Sell' and position < 0:
+                if trade[2] == 'Close':
+                    if trade[1] == 'Short' and position < 0:
                         # Short closing
-                        balance = ((-position - trade[2])/-position + 1)*balance*fee
-                    elif trade[0] == 'Buy' and position > 0:
+                        balance = ((-position - trade[3])/-position + 1)*balance*fee
+                    elif trade[1] == 'Long' and position > 0:
                         # Long closing
-                        balance = ((trade[2] - position)/position + 1)*balance*fee
+                        balance = ((trade[3] - position)/position + 1)*balance*fee
                     else:
                         raise SanityCheckError
                     position = 0
