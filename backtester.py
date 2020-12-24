@@ -178,6 +178,7 @@ class Backtest:
         if len(self.df) == 1:
             return True
         elif len(self.df) == 2:
+            pass
             #self._trim_dataframes()
             #self._check_gaps()
         else:
