@@ -272,7 +272,7 @@ def parse_args():
         "-p", "--period", type=str, default=None, help="Candle period/interval"
     )
     argp.add_argument(
-        "-f", "--file", type=str, default=None, nargs='*', help="Filename(s) within data/"
+        "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data/"
     )
 
     args = argp.parse_args()
