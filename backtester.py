@@ -76,7 +76,7 @@ class Backtest:
         i = len(self.df) - 1
         filename = (
             f'{self.exchange_cls.__name__}'
-            f'_{self.symbol.lower()}'
+            f'_{self.symbol}'
             f'_{self.data_cfg[i][1]}'
             f'_{self.start_ts}_{self.end_ts}.csv')
         if not os.path.exists('data/'):
