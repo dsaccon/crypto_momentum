@@ -23,6 +23,7 @@ class NotSupportedError(Exception):
 class Backtest:
     def __init__(self, args):
         self.run_name = args.name
+        self.path = '/'.join(os.path.abspath(__file__).split('/')[:-1])
 
         self._load_config()
 
@@ -50,10 +51,12 @@ class Backtest:
                 _mult = 60*60*24
             _cfg.append(int(_cfg[1][:-1])*_mult)
             #self.candle_period_secs = int(self.candle_period[:-1])*_mult
+
+        self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
 
     def _load_config(self):
-        with open('config.json', 'r') as f:
+        with open(f'{self.path}/config.json', 'r') as f:
             cfg = json.load(f)
 
         self.strategy = getattr(strategies, cfg[self.run_name]['strategy'])
@@ -79,9 +82,9 @@ class Backtest:
             f'_{self.symbol}'
             f'_{self.data_cfg[i][1]}'
             f'_{self.start_ts}_{self.end_ts}.csv')
-        if not os.path.exists('data/'):
+        if not os.path.exists(f'{self.path}/data/'):
             os.mkdir('data/')
-        self.df[i].to_csv(f'data/{filename}')
+        self.df[i][self.df_expected_cols[1:]].to_csv(f'data/{filename}')
 
     def _get_data_api(self, period):
         df_list = []
@@ -121,14 +124,13 @@ class Backtest:
         return True
 
     def _get_data_csv(self):
-        expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         for f in self.csv_file:
-            self.df.append(pd.read_csv(f'data/{f}'))
+            self.df.append(pd.read_csv(f'{self.path}/data/{f}'))
             cols = self.df[-1].columns.values.tolist()
             for i, col in enumerate(cols):
                 # Normalize col names
-                if not col == expected_cols[i]:
-                    self.df[-1].rename(columns={col: expected_cols[i]}, inplace=True)
+                if not col == self.df_expected_cols[i]:
+                    self.df[-1].rename(columns={col: self.df_expected_cols[i]}, inplace=True)
             # Adjust datetimes to 10 digit epoch
             if len(str(int(self.df[-1]['datetime'][0]))) == 10:
                 dt_col = self.df[-1]['datetime']
