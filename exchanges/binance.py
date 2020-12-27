@@ -52,8 +52,14 @@ class BinanceAPI(ExchangeAPI):
         self.base_uri = 'https://api.binance.com/api/v3/'
         self.max_candles_fetch = 1000
         self.trading_fee = 0.00075
-        self.API_KEY = os.environ['BINANCE_KEY']
-        self.API_SECRET = os.environ['BINANCE_SECRET']
+        if 'BINANCE_KEY' in os.environ:
+            self.API_KEY = os.environ['BINANCE_KEY']
+        else:
+            self.API_KEY = None
+        if 'BINANCE_SECRET' in os.environ:
+            self.API_SECRET = os.environ['BINANCE_SECRET']
+        else:
+            self.API_SECRET = None
         self.session = self._init_session()
         self.external_client = BinanceClient(self.API_KEY, self.API_SECRET)
 
