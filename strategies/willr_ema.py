@@ -47,31 +47,61 @@ class WillREma(BacktestingBaseClass):
         self.get_crosses('ema_13', 'ema_50', 0)
 #        self.cross_sell_close_col = 'crossover:ema_13-ema_50'
 
+    def _execute_trade(self, row):
+        if self.position == 0 and row['close'] > row['ema_13']:
+            if row[self.cross_buy_open_col]:
+                # Long entry
+                self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
+                self.position = 1
+        elif self.position > 0 and row[self.cross_buy_close_col]:
+                # Long close
+                self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
+                self.position = 0
+                return True
+        if self.position == 0 and row['close'] < row['ema_13']:
+            if row[self.cross_sell_open_col]:
+                # Short entry
+                self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
+                self.position = -1
+        elif self.position < 0 and row[self.cross_sell_close_col]:
+                # Short close
+                self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
+                self.position = 0
+                return True
+        return False
+
     def run(self):
         super().run()
         #
         if not self._crosses_sanity_check():
             raise SanityCheckError
         for i, row in self.data[0].iterrows():
-            if self.position == 0 and row['close'] > row['ema_13']:
-                if row[self.cross_buy_open_col]:
-                    # Long entry
-                    self.trades.append(('Buy', 'Open', row['close']))
-                    self.position = 1
-            elif self.position > 0 and row[self.cross_buy_close_col]:
-                    # Long close
-                    self.trades.append(('Sell', 'Close', row['close']))
-                    self.position = 0
-            if self.position == 0 and row['close'] < row['ema_13']:
-                if row[self.cross_sell_open_col]:
-                    # Short entry
-                    self.trades.append(('Sell', 'Open', row['close']))
-                    self.position = -1
-            elif self.position < 0 and row[self.cross_sell_close_col]:
-                    # Short close
-                    self.trades.append(('Sell', 'Close', row['close']))
-                    self.position = 0
+#            if self.position == 0 and row['close'] > row['ema_13']:
+#                if row[self.cross_buy_open_col]:
+#                    # Long entry
+#                    self.trades.append(('Buy', 'Open', row['close']))
+#                    self.position = 1
+#            elif self.position > 0 and row[self.cross_buy_close_col]:
+#                    # Long close
+#                    self.trades.append(('Sell', 'Close', row['close']))
+#                    self.position = 0
+#            if self.position == 0 and row['close'] < row['ema_13']:
+#                if row[self.cross_sell_open_col]:
+#                    # Short entry
+#                    self.trades.append(('Sell', 'Open', row['close']))
+#                    self.position = -1
+#            elif self.position < 0 and row[self.cross_sell_close_col]:
+#                    # Short close
+#                    self.trades.append(('Sell', 'Close', row['close']))
+#                    self.position = 0
+
+            _row = row.append(pd.Series([i], index=['datetime']))
+            if self._execute_trade(_row):
+                # If a position was closed in this candle, check to re-open new position
+                self._execute_trade(_row)
+
         self.calc_pnl()
+        print(self.trades)
         print(
             'pnl', self.pnl,
             f'{round((self.pnl/self.cfg["start_capital"])*100, 2)}%',
