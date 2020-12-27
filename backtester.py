@@ -84,7 +84,7 @@ class Backtest:
             f'_{self.start_ts}_{self.end_ts}.csv')
         if not os.path.exists(f'{self.path}/data/'):
             os.mkdir('data/')
-        self.df[i][self.df_expected_cols[1:]].to_csv(f'data/{filename}')
+        self.df[i][self.df_expected_cols[1:]].to_csv(f'{self.path}/data/{filename}')
 
     def _get_data_api(self, period):
         df_list = []
