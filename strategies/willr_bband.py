@@ -59,21 +59,21 @@ class WillRBband(BacktestingBaseClass):
         if self.position == 0 and row['willr_ema'] > row['willr_ema_prev']:
             if row[self.cross_buy_open_col]:
                 # Long entry
-                self.trades.append(('Buy', 'Open', row['close']))
+                self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
                 self.position = 1
         elif self.position > 0 and row[self.cross_buy_close_col]:
                 # Long close
-                self.trades.append(('Buy', 'Close', row['close']))
+                self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
                 self.position = 0
                 return True
         elif self.position == 0 and row['willr_ema'] < row['willr_ema_prev']:
             if row[self.cross_sell_open_col]:
                 # Short entry
-                self.trades.append(('Sell', 'Open', row['close']))
+                self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
                 self.position = -1
         elif self.position < 0 and row[self.cross_sell_close_col]:
                 # Short close
-                self.trades.append(('Sell', 'Close', row['close']))
+                self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
                 self.position = 0
                 return True
         return False
@@ -97,9 +97,11 @@ class WillRBband(BacktestingBaseClass):
 #                # Skip first row before 60m' first candle
 #                continue
 #            processed_rows += 1
-            if self._execute_trade(row):
+
+            _row = row.append(pd.Series([i], index=['datetime']))
+            if self._execute_trade(_row):
                 # If a position was closed in this candle, check to re-open new position
-                self._execute_trade(row)
+                self._execute_trade(_row)
 
 #            # Only progress 60m series iteration when ts' line up
 #            if self.position == 0 and row_1['willr_ema'].iloc[0] > row_1['willr_ema_prev'].iloc[0]:
