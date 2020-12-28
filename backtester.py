@@ -32,7 +32,7 @@ class Backtest:
         if args.symbol:
             self.data_cfg = [[args.symbol, c[1]] for c in self.data_cfg]
         if args.period:
-            self.data_cfg = [[c[0], args.period[i][1]] for i, c in enumerate(self.data_cfg)]
+            self.data_cfg = [[c[0], args.period[i]] for i, c in enumerate(self.data_cfg)]
         self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
         if args.end is not False:
