@@ -49,6 +49,10 @@ class Backtest:
                 _mult = 60*60
             elif _cfg[1].endswith('d'):
                 _mult = 60*60*24
+            elif _cfg[1].endswith('w'):
+                _mult = 60*60*24*7
+            elif _cfg[1].endswith('mo'):
+                _mult = 60*60*24*31
             _cfg.append(int(_cfg[1][:-1])*_mult)
 
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
