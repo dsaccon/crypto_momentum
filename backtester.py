@@ -221,7 +221,6 @@ class Backtest:
         else:
             raise DataCollectionError
 
-        print('trading cfg', self.trading_cfg) ### tmp
         self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
 
     def run_backtrader(self):
