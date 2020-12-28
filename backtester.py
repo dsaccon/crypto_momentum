@@ -30,15 +30,15 @@ class Backtest:
         # Overwrite config file settings from cli args
         self.csv_file = args.file
         if args.symbol:
-            self.symbol = args.symbol
-            self.data_cfg = [[self.symbol, c[1]] for c in self.data_cfg]
+            self.data_cfg = [[args.symbol, c[1]] for c in self.data_cfg]
+        if args.period:
+            self.data_cfg = [[c[0], args.period[i][1]] for i, c in enumerate(self.data_cfg)]
         self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
         if args.end is not False:
             self.end = tuple(args.end) if args.end else args.end
             if self.end:
                 self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
-        self.candle_period = args.period
 
         for _cfg in self.data_cfg:
             if _cfg[1].endswith('s'):
@@ -50,7 +50,6 @@ class Backtest:
             elif _cfg[1].endswith('d'):
                 _mult = 60*60*24
             _cfg.append(int(_cfg[1][:-1])*_mult)
-            #self.candle_period_secs = int(self.candle_period[:-1])*_mult
 
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
@@ -65,7 +64,6 @@ class Backtest:
         _exch_obj = importlib.import_module(_path)
         self.exchange_cls = getattr(_exch_obj, f'{_exch[0].upper()}{_exch[1:]}API')
         self.exchange_obj = self.exchange_cls()
-        self.symbol = cfg[self.run_name]['symbol']
         self.start = tuple(cfg[self.run_name]['start'])
         _end = cfg[self.run_name]['end']
         self.end = tuple(_end) if _end else _end
@@ -79,8 +77,8 @@ class Backtest:
         i = len(self.df) - 1
         filename = (
             f'{self.exchange_cls.__name__}'
-            f'_{self.symbol}'
-            f'_{self.candle_period}'
+            f'_{self.data_cfg[i][0]}'
+            f'_{self.data_cfg[i][1]}'
             f'_{self.start_ts}_{self.end_ts}.csv')
         if not os.path.exists(f'{self.path}/data/'):
             os.mkdir('data/')
@@ -98,7 +96,7 @@ class Backtest:
         while True:
             _end_dt = dt.datetime.utcnow() if end_dt is None else end_dt
             new_df = self.exchange_obj.get_backtest_data(
-                self.symbol,
+                self.data_cfg[len(self.df) - 1][0],
                 period[2],
                 start_dt,
                 _end_dt)
@@ -223,6 +221,7 @@ class Backtest:
         else:
             raise DataCollectionError
 
+        print('trading cfg', self.trading_cfg) ### tmp
         self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
 
     def run_backtrader(self):
@@ -271,7 +270,7 @@ def parse_args():
         "--end", type=int, default=False, nargs='*', help="End of period"
     )
     argp.add_argument(
-        "-p", "--period", type=str, default=None, help="Candle period/interval"
+        "-p", "--period", type=str, default=None, nargs="*", help="Candle period"
     )
     argp.add_argument(
         "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data/"
