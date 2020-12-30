@@ -41,6 +41,7 @@ class Backtest:
                 self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
 
         for _cfg in self.data_cfg:
+            i = 1
             if _cfg[1].endswith('s'):
                 _mult = 1
             elif _cfg[1].endswith('m'):
@@ -53,7 +54,8 @@ class Backtest:
                 _mult = 60*60*24*7
             elif _cfg[1].endswith('mo'):
                 _mult = 60*60*24*31
-            _cfg.append(int(_cfg[1][:-1])*_mult)
+                i = 2
+            _cfg.append(int(_cfg[1][:-i])*_mult)
 
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
