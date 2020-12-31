@@ -20,6 +20,10 @@ class NotSupportedError(Exception):
     pass
 
 
+class Object(object):
+    pass
+
+
 class Backtest:
     def __init__(self, args):
         self.run_name = args.name
@@ -284,6 +288,17 @@ def parse_args():
     args = argp.parse_args()
     return args
 
+def test_setup():
+    args = Object()
+    args.name = 'WillRBband_BTC_3m_60m'
+    args.exchange = 'binance'
+    args.strategy = 'WillRBband'
+    args.symbol = 'btcusdt'
+    args.start = [2020, 9, 1]
+    args.end = None
+    args.period = '1min'
+
+    return args
 
 if __name__ == '__main__':
     args = parse_args()
