@@ -37,6 +37,11 @@ class Backtest:
             self.data_cfg = [[args.symbol, c[1]] for c in self.data_cfg]
         if args.period:
             self.data_cfg = [[c[0], args.period[i]] for i, c in enumerate(self.data_cfg)]
+        if args.period and args.num_periods:
+            if not len(args.period) == len(args.num_periods):
+                print('Number of period and num_periods values must match')
+                raise ValueError
+        self.trading_cfg['num_periods'] = args.num_periods if args.num_periods else self.num_periods
         self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
         if args.end is not False:
@@ -65,6 +70,9 @@ class Backtest:
         self.df = []
 
     def _load_config(self):
+        """
+        Load config settings from config.json
+        """
         with open(f'{self.path}/config.json', 'r') as f:
             cfg = json.load(f)
 
@@ -78,6 +86,7 @@ class Backtest:
         _end = cfg[self.run_name]['end']
         self.end = tuple(_end) if _end else _end
         self.start_capital = cfg[self.run_name]['start_capital']
+        self.num_periods = cfg[self.run_name]['num_periods']
         if self.end:
             self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
         self.data_cfg = cfg[self.run_name]['series']
@@ -280,6 +289,9 @@ def parse_args():
     )
     argp.add_argument(
         "-p", "--period", type=str, default=None, nargs="*", help="Candle period"
+    )
+    argp.add_argument(
+        "--num_periods", type=int, default=None, nargs="*", help="Number of periods"
     )
     argp.add_argument(
         "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data/"
