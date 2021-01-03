@@ -37,10 +37,6 @@ class Backtest:
             self.data_cfg = [[args.symbol, c[1]] for c in self.data_cfg]
         if args.period:
             self.data_cfg = [[c[0], args.period[i]] for i, c in enumerate(self.data_cfg)]
-        if args.period and args.num_periods:
-            if not len(args.period) == len(args.num_periods):
-                print('Number of period and num_periods values must match')
-                raise ValueError
         self.trading_cfg['num_periods'] = args.num_periods if args.num_periods else self.num_periods
         self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
