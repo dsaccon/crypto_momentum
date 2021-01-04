@@ -36,6 +36,7 @@ class BacktestingBaseClass:
             'short_entry_cross': tuple(),
             'short_close_cross': tuple(),
         }
+        self.balances = []
 
     def preprocess_data(self):
         # Add new cols to dataframe necessary to do calcs in run()
@@ -87,6 +88,7 @@ class BacktestingBaseClass:
                         balance = ((trade[3] - position)/position + 1)*balance*fee
                     else:
                         raise SanityCheckError
+                    self.balances.append((trade[0], balance))
                     position = 0
                 else:
                     raise SanityCheckError
