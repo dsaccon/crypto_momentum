@@ -3,6 +3,7 @@ import operator
 import backtrader as bt
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
 import btalib
 
 from .base import BacktestingBaseClass
@@ -18,7 +19,7 @@ class WillRBband(BacktestingBaseClass):
             'short_close_cross': ('close', 'bband_20_low'),
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
-        _execution_type = '_execute_trade_60m_entry'
+        _execution_type = '_execute_trade_anytime_entry'
         self._execute_trade = getattr(self, _execution_type)
 
     def preprocess_data(self):
@@ -178,16 +179,14 @@ class WillRBband(BacktestingBaseClass):
         return False
 
     def _debug_output(self):
-        print(self.data[0])
-        print(self.data[0].shape)
-        print('len', len(self._trades))
-        self.data[0]['trades'] = self._trades
-        self.data[0]['position_open_state'] = self._POSs
-        self.data[0].to_csv('data/test/david_withcrosses_anytime_pos_entry.csv')
+#        print(self.data[0])
+#        print(self.data[0].shape)
+#        print('len', len(self._trades))
+        self.data[0].to_csv('data/test/test_balances.csv')
         import csv
-        with open('data/test/david_trades_anytime_entry.csv', 'w', newline='') as f:
+        with open('data/test/davids_cross_pos_entry_anytime.csv', 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerows(self.trades)
+            writer.writerows(self.balances)
 
     def run(self):
         super().run()
@@ -196,7 +195,7 @@ class WillRBband(BacktestingBaseClass):
             raise SanityCheckError
         processed_rows = 0
         self._trades = [] ### tmp
-#        self._POSs = [] ### tmp
+        self._POSs = [] ### tmp
         self.long_open = False
         self.long_close = False
         self.short_open = False
@@ -207,12 +206,31 @@ class WillRBband(BacktestingBaseClass):
             if self._execute_trade(_row):
                 # If a position was closed in this candle, check to re-open new position
                 self._execute_trade(_row)
-#            self._POSs.append(self.position_open_state) ### tmp
+            self._POSs.append(self.position_open_state) ### tmp
+
+        self.data[0]['position_open_state'] = self._POSs
+        self.data[0]['trades'] = self._trades
+        self.calc_pnl()
+        # Add balances to dataframe
+        balances_dt = [b[0] for b in self.balances]
+        bals = [
+            self.balances[balances_dt.index(i)][1]
+            if i in balances_dt else None
+            for i in self.data[0].index
+        ]
+        self.data[0]['balances'] = bals
+        self.data[0]['date'] = [
+            dt.datetime.fromtimestamp(i).strftime('%Y-%m-%d:%H-%M-%S')
+            for i in self.data[0].index
+        ]
+
+        self.data[0].fillna(method='ffill').plot(x='date', y='balances')
+        plt.show()
+
         #self._debug_output()
 
         print('--', self.trades)
         print('Processed rows', processed_rows)
-        self.calc_pnl()
         print(
             'pnl', self.pnl, 'ending capital', self.end_capital,
             f'{round((self.pnl/self.cfg["start_capital"])*100, 2)}%',
