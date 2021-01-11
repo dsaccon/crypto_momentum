@@ -318,7 +318,7 @@ class LiveWillRBband(WillRBband):
         API call + checks to fetch new candles as they become available
         """
         now = dt.datetime.now()
-        latest_data_idx = self.data[i].index[-1]
+        latest_data_idx = int(self.data[i].index[-1])
         period = self.cfg['series'][i][2]
         if now.timestamp() - latest_data_idx > period + 5:
             # Get updated candle from exchange
