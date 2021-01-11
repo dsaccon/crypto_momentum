@@ -353,7 +353,12 @@ class LiveWillRBband(WillRBband):
             if self._get_latest_candle(0): # Adds 3m candles
                 self._get_latest_candle(1) # Adds 60m candles, hourly
                 self.preprocess_data()
-                self._on_new_candle(self.data[0].iloc[-1])
+                #self._on_new_candle(self.data[0].iloc[-1])
+                row = self.data[0].iloc[-1]
+                idx = self.data[0].index[-1]
+                row = row.append(pd.Series([idx], index=['datetime']))
+                self._on_new_candle(row)
+
 
                 print(self.data[0])
                 print('')
