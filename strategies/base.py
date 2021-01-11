@@ -20,6 +20,7 @@ class BacktestingBaseClass:
     }
 
     def __init__(self, data, exch_obj, cfg):
+        self.execution_mode = None # 'backtest' or 'live'
         self.data = data
         self.cfg = cfg
         self.exchange = exch_obj
