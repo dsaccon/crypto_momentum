@@ -179,7 +179,7 @@ class BinanceAPI(ExchangeAPI):
 
     # Internal helper funcs
 
-    def _convert_interval(self, secs):
+    def _convert_period(self, secs):
         if secs >= 60*60*24:
             return f'{int(secs/(60*60*24))}d'
         elif secs >= 60*60:
@@ -189,27 +189,53 @@ class BinanceAPI(ExchangeAPI):
         else:
             return f'{int(secs)}s'
 
+    def _get_exchange_info(self):
+        endpoint = 'exchangeInfo'
+        _uri = f'{self.base_uri}{endpoint}'
+
+        resp = json.loads(requests.get(_uri, params=None).text)
+        return resp
+
+
     # Custom functions
 
     def get_backtest_data(self, *args):
         return self.get_historical_candles(*args)
 
-    def get_historical_candles(self, symbol, interval, startTime, endTime):
+    def get_historical_candles(
+            self,
+            symbol: str,
+            period: int,
+            startTime: dt,
+            endTime: dt) -> pd:
+
+        """
+            Arguments
+            ---------
+            symbol (str): symbol name of instrument. E.g. 'btcusdt'
+            period (int): period length (secs)
+            startTime (dt): series start time in datetime format
+            endTime (dt): series end time in datetime format
+
+            Returns
+            ---------
+            df (pd): pandas dataframe with collected data from API
+        """
 
         endpoint = 'klines'
         _uri = f'{self.base_uri}{endpoint}'
         startTime = str(int(startTime.timestamp() * 1000))
         endTime = str(int(endTime.timestamp() * 1000))
-        _interval = self._convert_interval(interval) # Convert from secs
+        _period = self._convert_period(period) # Convert from secs
         req_params = {
             'symbol' : symbol.upper(),
-            'interval' : _interval,
+            'interval' : _period,
             'startTime' : startTime,
             'endTime' : endTime,
             'limit' : self.max_candles_fetch
         }
 
-        df = pd.DataFrame(json.loads(requests.get(_uri, params = req_params).text))
+        df = pd.DataFrame(json.loads(requests.get(_uri, params=req_params).text))
 
         if (len(df.index) == 0):
             return None
@@ -228,6 +254,16 @@ class BinanceAPI(ExchangeAPI):
         df.index = [dt.datetime.utcfromtimestamp(x/1000.0) for x in df.datetime]
         df.datetime = df.datetime.apply(lambda r: int(r/1000))
         return df
+
+    def get_book(self, symbol='BTCUSDT'):
+        endpoint = 'depth'
+        _uri = f'{self.base_uri}{endpoint}'
+        req_params = {
+            'symbol' : symbol.upper(),
+        }
+
+        resp = json.loads(requests.get(_uri, params=req_params).text)
+        return resp
 
     def get_balances(self, asset='all'):
         bals = self._external_client.get_account()
@@ -252,10 +288,27 @@ class BinanceAPI(ExchangeAPI):
 
         print(resp)
         if isinstance(resp, dict):
-            return resp['status']
+            return {
+                    'order_id': r['orderId'],
+                    'symbol': r['symbol'],
+                    'timestamp': r['updateTime'],
+                    'status': r['status'],
+                    'price': r['price'],
+                    'quantity': r['executedQty']
+            }
         elif isinstance(resp, list):
             # Return as list of (order_id, symbol, status) tuples
-            return [(r['orderId'], r['symbol'], r['status']) for r in resp]
+            return [
+                {
+                    'order_id': r['orderId'],
+                    'symbol': r['symbol'],
+                    'timestamp': r['updateTime'],
+                    'status': r['status'],
+                    'price': r['price'],
+                    'quantity': r['executedQty']
+                }
+                for r in resp
+            ]
         else:
             raise ValueError
 
