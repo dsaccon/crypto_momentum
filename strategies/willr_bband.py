@@ -1,4 +1,6 @@
+import time
 import datetime as dt
+import csv
 import operator
 import backtrader as bt
 import pandas as pd
@@ -12,6 +14,7 @@ class WillRBband(BacktestingBaseClass):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.execution_mode = 'backtesting'
         self.col_tags = {
             'long_entry_cross': ('close', 'bband_20_low'),
             'long_close_cross': ('close', 'bband_20_high'),
@@ -20,7 +23,7 @@ class WillRBband(BacktestingBaseClass):
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
         _execution_type = '_execute_trade_anytime_entry'
-        self._execute_trade = getattr(self, _execution_type)
+        self._on_new_candle = getattr(self, _execution_type)
 
     def preprocess_data(self):
         self.cross_buy_open_col = f"crossover:{self.col_tags['long_entry_cross'][0]}-{self.col_tags['long_entry_cross'][1]}"
@@ -63,6 +66,62 @@ class WillRBband(BacktestingBaseClass):
         # For Short close
         self.get_crosses('close', 'bband_20_low', i, over=False)
 
+    def _execute_trade(self, trade_settings):
+        """
+        """
+        if trade_settings[1] == 'Long' and trade_settings[2] == 'Open':
+            side = 'BUY'
+        elif trade_settings[1] == 'Short' and trade_settings[2] == 'Close':
+            side = 'BUY'
+        elif trade_settings[1] == 'Short' and trade_settings[2] == 'Open':
+            side = 'SELL'
+        elif trade_settings[1] == 'Long' and trade_settings[2] == 'Close':
+            side = 'SELL'
+        else:
+            raise ValueError
+
+        if self.execution_mode == 'backtesting':
+            self.trades.append(trade_settings)
+        elif self.execution_mode == 'live':
+            size = self._get_trade_size(side)
+            symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+            order_id = self.exchange.place_order(symbol, side, size)
+            self._trade_accounting(order_id)
+        else:
+            raise ValueError
+
+    def _trade_accounting(self, order_id):
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
+        bals = self.exchange.get_balances()
+        # row: (price, qty, base_bal, quote_bal)
+        row = (
+            trade_status[3],
+            trade_status[4],
+            bals[self.cfg['symbol'][0]],
+            bals[self.cfg['symbol'][1]])
+
+        ### Need to process trade_status here ### tmp
+        with open(f'data/live_trades.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(row)
+
+    def _get_trade_size(self, side):
+        """
+        For live trading, calc max trade size allowed based on balance
+        ..from API and current order book
+        """
+        bals = self.exchange.get_balances()
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        book = self.exchange.get_book(symbol=symbol)
+
+        if side == 'SELL':
+            size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
+        elif side == 'BUY':
+            size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
+
+        return size
+
     def _execute_trade_anytime_entry(self, row):
         """
         Modified trade logic.
@@ -77,28 +136,36 @@ class WillRBband(BacktestingBaseClass):
         if self.position == 0 and self.position_open_state == 'long_open':
             if row[self.cross_buy_open_col]:
                 # Long entry
-                self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
+                #self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
                 self.position = 1
                 self.position_open_state = False
                 self._trades[-1] += '_long_open' ### tmp
+                settings = (row['datetime'], 'Long', 'Open', row['close'])
+                self._execute_trade(settings)
         elif self.position > 0 and row[self.cross_buy_close_col]:
                 # Long close
-                self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
+                #self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
                 self.position = 0
                 self._trades[-1] += '_long_close' ### tmp
+                settings = (row['datetime'], 'Long', 'Close', row['close'])
+                self._execute_trade(settings)
                 return True
         elif self.position == 0 and self.position_open_state == 'short_open':
             if row[self.cross_sell_open_col]:
                 # Short entry
-                self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
+                #self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
                 self.position = -1
                 self.position_open_state = False
                 self._trades[-1] += '_short_open' ### tmp
+                settings = (row['datetime'], 'Short', 'Open', row['close'])
+                self._execute_trade(settings)
         elif self.position < 0 and row[self.cross_sell_close_col]:
                 # Short close
-                self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
+                #self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
                 self.position = 0
                 self._trades[-1] += '_short_close' ### tmp
+                settings = (row['datetime'], 'Short', 'Close', row['close'])
+                self._execute_trade(settings)
                 return True
         return False
 
@@ -183,7 +250,6 @@ class WillRBband(BacktestingBaseClass):
 #        print(self.data[0].shape)
 #        print('len', len(self._trades))
         self.data[0].to_csv('data/test/test_balances.csv')
-        import csv
         with open('data/test/davids_cross_pos_entry_anytime.csv', 'w', newline='') as f:
             writer = csv.writer(f)
             writer.writerows(self.balances)
@@ -203,9 +269,9 @@ class WillRBband(BacktestingBaseClass):
         for i, row in self.data[0].iterrows(): # iterate over 3m series
             _row = row.append(pd.Series([i], index=['datetime']))
             self._trades.append('')
-            if self._execute_trade(_row):
+            if self._on_new_candle(_row):
                 # If a position was closed in this candle, check to re-open new position
-                self._execute_trade(_row)
+                self._on_new_candle(_row)
             self._POSs.append(self.position_open_state) ### tmp
 
         self.data[0]['position_open_state'] = self._POSs
@@ -236,3 +302,61 @@ class WillRBband(BacktestingBaseClass):
             f'{round((self.pnl/self.cfg["start_capital"])*100, 2)}%',
             'num trades', len(self.trades),
             'dataframe', self.data[0].shape)
+
+
+class LiveWillRBband(WillRBband):
+
+    MAX_PERIODS = (20, 43) # Corresponding to (3m, 60m) data series
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.execution_mode = 'live'
+
+    def _get_latest_candle(self, i):
+        """
+        API call + checks to fetch new candles as they become available
+        """
+        now = dt.datetime.now()
+        latest_data_idx = self.data[i].index[-1]
+        period = self.cfg['series'][i][2]
+        if now.timestamp() - latest_data_idx > period + 5:
+            # Get updated candle from exchange
+            start = dt.datetime.fromtimestamp(now.timestamp() - 2*period)
+            new_candle = self.exchange.get_backtest_data(
+                self.cfg['symbol'][0]+self.cfg['symbol'][1],
+                period,
+                start,
+                now)
+            idx = int(new_candle.iloc[-1]['datetime'])
+            if not idx == latest_data_idx + period:
+                print(new_candle.iloc[-1]['datetime'])
+                print(latest_data_idx)
+                print(period)
+                raise Exception
+
+            row = {c:None for c in self.data[i].columns}
+            self.data[i].loc[idx] = row
+            self.data[i].at[idx, 'open'] = new_candle.iloc[-1]['open']
+            self.data[i].at[idx, 'high'] = new_candle.iloc[-1]['high']
+            self.data[i].at[idx, 'low'] = new_candle.iloc[-1]['low']
+            self.data[i].at[idx, 'close'] = new_candle.iloc[-1]['close']
+            return True
+        else:
+            return False
+
+    def run(self):
+        self.preprocess_data()
+
+        while True:
+            # Periodically update candles from API
+            if self._get_latest_candle(0): # Adds 3m candles
+                self._get_latest_candle(1) # Adds 60m candles, hourly
+                self.preprocess_data()
+                self._on_new_candle(self.data[0].iloc[-1])
+
+                print(self.data[0])
+                print('')
+                print(self.data[1])
+            else:
+                time.sleep(1)
+                print('not there yet, remaining:', self.cfg['series'][0][2] - dt.datetime.now().timestamp() % self.cfg['series'][0][2])
