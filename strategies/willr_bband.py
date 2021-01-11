@@ -82,6 +82,7 @@ class WillRBband(BacktestingBaseClass):
 
         if self.execution_mode == 'backtesting':
             self.trades.append(trade_settings)
+            self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
             size = self._get_trade_size(side)
             symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
@@ -139,14 +140,14 @@ class WillRBband(BacktestingBaseClass):
                 #self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
                 self.position = 1
                 self.position_open_state = False
-                self._trades[-1] += '_long_open' ### tmp
+                #self._trades[-1] += '_long_open' ### tmp
                 settings = (row['datetime'], 'Long', 'Open', row['close'])
                 self._execute_trade(settings)
         elif self.position > 0 and row[self.cross_buy_close_col]:
                 # Long close
                 #self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
                 self.position = 0
-                self._trades[-1] += '_long_close' ### tmp
+                #self._trades[-1] += '_long_close' ### tmp
                 settings = (row['datetime'], 'Long', 'Close', row['close'])
                 self._execute_trade(settings)
                 return True
@@ -156,14 +157,14 @@ class WillRBband(BacktestingBaseClass):
                 #self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
                 self.position = -1
                 self.position_open_state = False
-                self._trades[-1] += '_short_open' ### tmp
+                #self._trades[-1] += '_short_open' ### tmp
                 settings = (row['datetime'], 'Short', 'Open', row['close'])
                 self._execute_trade(settings)
         elif self.position < 0 and row[self.cross_sell_close_col]:
                 # Short close
                 #self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
                 self.position = 0
-                self._trades[-1] += '_short_close' ### tmp
+                #self._trades[-1] += '_short_close' ### tmp
                 settings = (row['datetime'], 'Short', 'Close', row['close'])
                 self._execute_trade(settings)
                 return True
