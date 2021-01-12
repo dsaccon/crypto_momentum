@@ -117,9 +117,14 @@ class WillRBband(BacktestingBaseClass):
         book = self.exchange.get_book(symbol=symbol)
 
         if side == 'SELL':
-            size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
+            # Round down at 5 decimals
+            size = int(bals[self.cfg['symbol'][0]]*10**5)/10**5
+            #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
         elif side == 'BUY':
-            size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
+            #size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
+            # Round down at 5 decimals
+            size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
+            size = int(size*10**5)/10**5
 
         return size
 
