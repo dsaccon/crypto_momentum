@@ -84,49 +84,12 @@ class WillRBband(BacktestingBaseClass):
             self.trades.append(trade_settings)
             self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
-            size = self._get_trade_size(side)
+            size = self._live_trade_size(side)
             symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
             order_id = self.exchange.place_order(symbol, side, size)
-            self._trade_accounting(order_id)
+            self._live_accounting(order_id)
         else:
             raise ValueError
-
-    def _trade_accounting(self, order_id):
-        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
-        bals = self.exchange.get_balances()
-        # row: (price, qty, base_bal, quote_bal)
-        row = (
-            trade_status[3],
-            trade_status[4],
-            bals[self.cfg['symbol'][0]],
-            bals[self.cfg['symbol'][1]])
-
-        ### Need to process trade_status here ### tmp
-        with open(f'data/live_trades.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerows(row)
-
-    def _get_trade_size(self, side):
-        """
-        For live trading, calc max trade size allowed based on balance
-        ..from API and current order book
-        """
-        bals = self.exchange.get_balances()
-        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        book = self.exchange.get_book(symbol=symbol)
-
-        if side == 'SELL':
-            # Round down at 5 decimals
-            size = int(bals[self.cfg['symbol'][0]]*10**5)/10**5
-            #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
-        elif side == 'BUY':
-            #size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
-            # Round down at 5 decimals
-            size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
-            size = int(size*10**5)/10**5
-
-        return size
 
     def _execute_trade_anytime_entry(self, row):
         """
@@ -349,6 +312,52 @@ class LiveWillRBband(WillRBband):
             return True
         else:
             return False
+
+    def _live_accounting(self, order_id):
+        """
+        For live trading, dump trade to csv
+        """
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
+        bals = self.exchange.get_balances()
+        # row: (price, qty, base_bal, quote_bal)
+        row = (
+            trade_status[3],
+            trade_status[4],
+            bals[self.cfg['symbol'][0]],
+            bals[self.cfg['symbol'][1]])
+
+        ### Need to process trade_status here ### tmp
+        with open(f'data/live_trades.csv', 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerows(row)
+
+    def _live_trade_size(self, side):
+        """
+        For live trading, calc max trade size allowed based on balance
+        ..from API and current order book
+        """
+        bals = self.exchange.get_balances()
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        book = self.exchange.get_book(symbol=symbol)
+        sig_digs = 5 # significant digits
+        round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
+        adjuster = 5*round_down(1/10**sig_digs)
+
+        if side.upper() == 'SELL':
+            # Round down at sd decimals
+            #size = int(bals[self.cfg['symbol'][0]]*10**sd)/10**sd
+            size = round_down(bals[self.cfg['symbol'][0]])
+            #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
+        elif side.upper() == 'BUY':
+            #size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
+            # Round down at sd decimals
+            size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
+            size = size*(1 - self.exchange.trading_fee)
+            #size = int(size*10**sd)/10**sd
+            size = round_down(size) - adjuster
+
+        return size
 
     def run(self):
         self.preprocess_data()
