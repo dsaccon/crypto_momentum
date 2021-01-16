@@ -93,8 +93,7 @@ class BacktestingBaseClass:
                     position = 0
                 else:
                     raise SanityCheckError
-        self.end_capital = balance
-        self.pnl = self.end_capital - self.cfg['start_capital']
+        self.pnl = balance - self.cfg['start_capital']
 
     def _crosses_sanity_check(self):
         #

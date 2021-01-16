@@ -69,5 +69,47 @@
     "end": null,
 		"start_capital": 10000,
     "symbol": ["BTC", "USDT"]
-  }
+  },
+  "HA": {
+    "series": [
+      [
+        "FB",
+        "1m"
+      ]
+    ],
+		"num_periods": [null, null],
+    "exchange": "ib",
+    "strategy": "HA",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": "FB"
+  },
+ "EmaLrc": {
+		"series": [
+			[
+				"FB",
+				"5m"
+			]
+		],
+		"num_periods": [30, 14],
+		"exchange": "ib",
+		"strategy": "EmaLrc",
+		"start": [
+			2020,
+			9,
+			1,
+			0,
+			0
+		],
+		"end": null,
+		"start_capital": 10000,
+		"symbol": "FB"
+	}
 }
