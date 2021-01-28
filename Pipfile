@@ -10,9 +10,10 @@ requests = "*"
 backtrader = "*"
 matplotlib = "==3.2.2"
 bta-lib = "*"
+ta-lib = "*"
 python-binance = "*"
 
 [dev-packages]
 
 [requires]
-python_version = "3.7"
+python_version = "3.8"
