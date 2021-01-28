@@ -6,6 +6,8 @@ if [ "$OS" == 'Darwin' ]; then
     brew update
     brew cask install ta-lib
 elif [ "$OS" == 'Linux' ]; then
+    sudo apt update
+    sudo apt install -y pipenv
     wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
     tar xvzf ta-lib-0.4.0-src.tar.gz
     cd ta-lib
