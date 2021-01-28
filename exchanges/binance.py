@@ -281,6 +281,9 @@ class BinanceAPI(ExchangeAPI):
             ][0]
 
     def order_status(self, symbol='BTCUSDT', order_id=None):
+        """
+        Valid status values: 'CANCELED', 'EXPIRED', 'NEW'
+        """
         if order_id is None:
             resp = self._external_client.get_all_orders(symbol=symbol)
         else:
@@ -289,12 +292,12 @@ class BinanceAPI(ExchangeAPI):
         print(resp)
         if isinstance(resp, dict):
             return {
-                    'order_id': r['orderId'],
-                    'symbol': r['symbol'],
-                    'timestamp': r['updateTime'],
-                    'status': r['status'],
-                    'price': r['price'],
-                    'quantity': r['executedQty']
+                    'order_id': resp['orderId'],
+                    'symbol': resp['symbol'],
+                    'timestamp': resp['updateTime'],
+                    'status': resp['status'],
+                    'price': resp['price'],
+                    'quantity': resp['executedQty']
             }
         elif isinstance(resp, list):
             # Return as list of (order_id, symbol, status) tuples
@@ -344,15 +347,17 @@ class BinanceAPI(ExchangeAPI):
         return resp['orderId']
 
     def cancel_order(self, symbol='BTCUSDT', order_id=None):
-        if order_id is 'all':
+        if order_id == 'all':
             all_orders = self.order_status()
             for ord_ in all_orders:
-                if ord_[2] == 'NEW':
-                    self._external_client.cancel_order(symbol=ord_[1], orderId=ord_[0])
+                if ord_['status'] == 'NEW':
+                    self._external_client.cancel_order(
+                        symbol=ord_['symbol'], orderId=ord_['order_id'])
         elif order_id is None:
             raise ValueError
         else:
-            return self._external_client.cancel_order(symbol=symbol, orderId=order_id)
+            return self._external_client.cancel_order(
+                symbol=symbol, orderId=order_id)
 
     def test_order(self, symbol='BTCUSDT', side='BUY', type_='MARKET', quantity=None, price=None):
         if type_ == 'MARKET':
