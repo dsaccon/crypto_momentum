@@ -241,7 +241,7 @@ def parse_args():
         "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data/"
     )
     argp.add_argument(
-        "-t", "--use_testnet", type=bool, default=True, help="Set to False to run on live account"
+        "-t", "--use_testnet", action='store_true', help="Set to False to run on live account"
     )
 
     args = argp.parse_args()
