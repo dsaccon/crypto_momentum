@@ -1,9 +1,10 @@
 import datetime as dt
 import operator
-import backtrader as bt
+import logging
 import pandas as pd
 import numpy as np
 import btalib
+import backtrader as bt
 
 class SanityCheckError(Exception):
     pass
@@ -38,6 +39,7 @@ class BacktestingBaseClass:
             'short_close_cross': tuple(),
         }
         self.balances = []
+        self.logger = logging.getLogger(__name__)
 
     def preprocess_data(self):
         # Add new cols to dataframe necessary to do calcs in run()
@@ -94,6 +96,9 @@ class BacktestingBaseClass:
                 else:
                     raise SanityCheckError
         self.pnl = balance - self.cfg['start_capital']
+
+    def _place_live_order(self, side):
+        raise NotImplementedError
 
     def _crosses_sanity_check(self):
         #

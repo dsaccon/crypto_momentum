@@ -1,7 +1,9 @@
 import time
-import datetime as dt
+import os
 import csv
+import datetime as dt
 import operator
+import logging
 import backtrader as bt
 import pandas as pd
 import numpy as np
@@ -84,10 +86,7 @@ class WillRBband(BacktestingBaseClass):
             self.trades.append(trade_settings)
             self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
-            size = self._live_trade_size(side)
-            symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-            order_id = self.exchange.place_order(symbol, side, size)
-            self._live_accounting(order_id)
+            self._place_live_order(side)
         else:
             raise ValueError
 
@@ -215,9 +214,6 @@ class WillRBband(BacktestingBaseClass):
         return False
 
     def _debug_output(self):
-#        print(self.data[0])
-#        print(self.data[0].shape)
-#        print('len', len(self._trades))
         self.data[0].to_csv('data/test/test_balances.csv')
         with open('data/test/davids_cross_pos_entry_anytime.csv', 'w', newline='') as f:
             writer = csv.writer(f)
@@ -264,14 +260,13 @@ class WillRBband(BacktestingBaseClass):
 
         #self._debug_output()
 
-        print('--', self.trades)
-        print('Processed rows', processed_rows)
-        print(
-            'pnl', self.pnl, 'ending capital', self.end_capital,
-            f'{round((self.pnl/self.cfg["start_capital"])*100, 2)}%',
-            'num trades', len(self.trades),
-            'dataframe', self.data[0].shape)
-
+        self.logger.debug(f'--, {self.trades}')
+        self.logger.debug(f'Processed rows: {processed_rows}')
+        self.logger.debug(
+            f'pnl: {self.pnl}, ending capital: {self.end_capital}'
+            f' {round((self.pnl/self.cfg["start_capital"])*100, 2)}%'
+            f' num trades: {len(self.trades)}'
+            f' dataframe: {self.data[0].shape}')
 
 class LiveWillRBband(WillRBband):
 
@@ -298,9 +293,9 @@ class LiveWillRBband(WillRBband):
                 now)
             idx = int(new_candle.iloc[-1]['datetime'])
             if not idx == latest_data_idx + period:
-                print(new_candle.iloc[-1]['datetime'])
-                print(latest_data_idx)
-                print(period)
+                self.logger.debug(f'now: {dt.datetime.now().timestamp()}')
+                self.logger.debug(f'last candle: {new_candle.iloc[-1]["datetime"]}')
+                self.logger.debug(f'{latest_data_idx}, {period}')
                 raise Exception
 
             row = {c:None for c in self.data[i].columns}
@@ -322,13 +317,16 @@ class LiveWillRBband(WillRBband):
         bals = self.exchange.get_balances()
         # row: (price, qty, base_bal, quote_bal)
         row = (
-            trade_status[3],
-            trade_status[4],
+            trade_status['price'],
+            trade_status['quantity'],
             bals[self.cfg['symbol'][0]],
             bals[self.cfg['symbol'][1]])
 
-        ### Need to process trade_status here ### tmp
-        with open(f'data/live_trades.csv', 'w', newline='') as f:
+        ### Need to process trade_status here
+        write_mode = 'a'
+        if not os.path.isfile('data/live_trades.csv'):
+            write_mode = 'w'
+        with open(f'data/live_trades.csv', write_mode, newline='') as f:
             writer = csv.writer(f)
             writer.writerows(row)
 
@@ -359,6 +357,13 @@ class LiveWillRBband(WillRBband):
 
         return size
 
+    def _place_live_order(self, side):
+        size = self._live_trade_size(side)
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        self.logger.debug(f'placing order: symbol {symbol}, side {side}, size {size}') ### tmp
+        order_id = self.exchange.place_order(symbol, side, size)
+        self._live_accounting(order_id)
+
     def run(self):
         self.preprocess_data()
 
@@ -374,9 +379,11 @@ class LiveWillRBband(WillRBband):
                 self._on_new_candle(row)
 
 
-                print(self.data[0])
-                print('')
-                print(self.data[1])
+                self.logger.debug(self.data[0])
+                self.logger.debug('')
+                self.logger.debug(self.data[1])
             else:
                 time.sleep(1)
-                print('not there yet, remaining:', self.cfg['series'][0][2] - dt.datetime.now().timestamp() % self.cfg['series'][0][2])
+                if int(str(int(dt.datetime.now().timestamp()))[-1]) % 9 == 0:
+                    remaining = self.cfg['series'][0][2] - dt.datetime.now().timestamp() % self.cfg['series'][0][2]
+                    self.logger.debug(f"Next candle in {remaining}s")
