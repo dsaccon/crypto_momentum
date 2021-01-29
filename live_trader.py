@@ -4,6 +4,7 @@ import os
 import pandas as pd
 import datetime as dt
 import argparse
+import logging
 import importlib
 import strategies
 
@@ -137,10 +138,10 @@ class LiveTrader:
                 start_dt,
                 _end_dt)
             df_list.append(new_df)
-            subprocess.call("clear")
+            #subprocess.call("clear")
             remaining = int(
                 ((_end_dt.timestamp() - start_dt.timestamp())/period[2]))
-            print(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
+            logging.info(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
             secs_til_end = _end_dt.timestamp() - start_dt.timestamp()
             if not self.exchange_obj.max_candles_fetch or secs_til_end < period[2]*self.exchange_obj.max_candles_fetch:
                 break
@@ -149,11 +150,11 @@ class LiveTrader:
         #self.end = [_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute]
         self.end = (_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute)
         self.end_ts = int(dt.datetime(*self.end).timestamp())
-        subprocess.call("clear")
+        #subprocess.call("clear")
         self.df.append(pd.concat(df_list))
         #self.df[-1] = self.df[-1].reset_index(drop=True)
         self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
-        print(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
+        logging.info(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
         self.dump_to_csv()
         return True
 
@@ -165,8 +166,8 @@ class LiveTrader:
         """
         quit() 
         longest_period = max([_[2] for _ in self.data_cfg])
-        print(self.data_cfg)
-        print(longest_period)
+        logging.info(self.data_cfg)
+        logging.info(longest_period)
         while True:
             if all([
                     d.iloc[0].index % longest_period == 0
@@ -183,9 +184,9 @@ class LiveTrader:
                     return False
         else:
             if not len(self.data_cfg) == len(self.csv_file):
-                print(f'Number of csv files provided should be {len(self.data_cfg)}')
-                print(self.data_cfg)
-                print(self.csv_file)
+                logging.info(f'Number of csv files provided should be {len(self.data_cfg)}')
+                logging.info(self.data_cfg)
+                logging.info(self.csv_file)
                 raise ValueError
             self._get_data_csv()
 
@@ -261,5 +262,10 @@ def test_setup():
 
 
 if __name__ == '__main__':
+    print('Running live trader app, check logs at logs/live_trader.log')
+    if not os.path.isdir('logs/'):
+        os.mkdir('logs')
+    logging.basicConfig(filename='logs/live_trader.log', level=logging.DEBUG)
+    logging.info(f'{int(dt.datetime.now().timestamp())}: Starting live trader')
     args = parse_args()
     LiveTrader(args).run()
