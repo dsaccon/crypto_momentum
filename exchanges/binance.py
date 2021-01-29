@@ -196,6 +196,10 @@ class BinanceAPI(ExchangeAPI):
         resp = json.loads(requests.get(_uri, params=None).text)
         return resp
 
+    # Generic call to external client
+    def external_misc(self, func, *args, **kwargs):
+        _func = getattr(self._external_client, func)
+        return _func(*args, **kwargs)
 
     # Custom functions
 
