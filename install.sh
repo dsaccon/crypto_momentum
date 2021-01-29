@@ -16,6 +16,7 @@ elif [ "$OS" == 'Linux' ]; then
     sudo make install
     cd ..
     rm ta-lib-0.4.0-src.tar.gz
+		rm -r ta-lib
 fi
 
 pipenv install
