@@ -12,7 +12,6 @@ matplotlib = "==3.2.2"
 bta-lib = "*"
 ta-lib = "*"
 python-binance = "*"
-ta-lib = "*"
 
 [dev-packages]
 
