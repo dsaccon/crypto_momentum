@@ -217,7 +217,7 @@ class WillRBband(BacktestingBaseClass):
         self.data[0].to_csv('data/test/test_balances.csv')
         with open('data/test/davids_cross_pos_entry_anytime.csv', 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerows(self.balances)
+            writer.writerow(self.balances)
 
     def run(self):
         super().run()
@@ -317,18 +317,23 @@ class LiveWillRBband(WillRBband):
         bals = self.exchange.get_balances()
         # row: (price, qty, base_bal, quote_bal)
         row = (
-            trade_status['price'],
+            trade_status['timestamp'],
+            trade_status['symbol'],
+            trade_status['side'],
             trade_status['quantity'],
+            trade_status['price'],
+            trade_status['order_id'],
+            trade_status['status'],
             bals[self.cfg['symbol'][0]],
             bals[self.cfg['symbol'][1]])
 
         ### Need to process trade_status here
         write_mode = 'a'
-        if not os.path.isfile('data/live_trades.csv'):
+        if not os.path.isfile('logs/live_trades.csv'):
             write_mode = 'w'
-        with open(f'data/live_trades.csv', write_mode, newline='') as f:
+        with open(f'logs/live_trades.csv', write_mode, newline='') as f:
             writer = csv.writer(f)
-            writer.writerows(row)
+            writer.writerow(row)
 
     def _live_trade_size(self, side):
         """
@@ -338,14 +343,15 @@ class LiveWillRBband(WillRBband):
         bals = self.exchange.get_balances()
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         book = self.exchange.get_book(symbol=symbol)
-        sig_digs = 5 # significant digits
+        sig_digs = len(
+            self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1])
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
         adjuster = 5*round_down(1/10**sig_digs)
 
         if side.upper() == 'SELL':
             # Round down at sd decimals
             #size = int(bals[self.cfg['symbol'][0]]*10**sd)/10**sd
-            size = round_down(bals[self.cfg['symbol'][0]])
+            size = f'%.{sig_digs}f' % round_down(bals[self.cfg['symbol'][0]])
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
         elif side.upper() == 'BUY':
             #size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
@@ -353,7 +359,7 @@ class LiveWillRBband(WillRBband):
             size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
             size = size*(1 - self.exchange.trading_fee)
             #size = int(size*10**sd)/10**sd
-            size = round_down(size) - adjuster
+            size = f'%.{sig_digs}f' % (round_down(size) - adjuster)
 
         return size
 
