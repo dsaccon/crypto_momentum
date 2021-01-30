@@ -2,6 +2,7 @@ import os
 import datetime as dt
 import time
 import json
+import logging
 #from operator import itemgetter
 #import hashlib
 #import hmac
@@ -49,7 +50,8 @@ class BinanceAPI(ExchangeAPI):
     def __init__(self, use_testnet=False):
         self.base_uri = 'https://api.binance.com/api/v3/'
         self.max_candles_fetch = 1000
-        self.trading_fee = 0.00075
+        #self.trading_fee = 0.00075
+        self.trading_fee = 0.001
         if use_testnet:
             if 'BINANCE_TEST_KEY' in os.environ:
                 self._API_KEY = os.environ['BINANCE_TEST_KEY']
@@ -73,6 +75,10 @@ class BinanceAPI(ExchangeAPI):
 
         if use_testnet:
             self._external_client.API_URL = BinanceAPI.API_URL_TESTNET
+
+        self.logger = logging.getLogger(__name__)
+
+        self._symbol_info = self._parse_symbol_info()
 
 
 #    def _init_session(self):
@@ -189,6 +195,18 @@ class BinanceAPI(ExchangeAPI):
         else:
             return f'{int(secs)}s'
 
+    def _parse_symbol_info(self):
+        symbols = self._get_exchange_info()['symbols']
+        info = {}
+        for s in symbols:
+            key = s['symbol']
+            info[key] = {}
+            info[key]['lot_min'] = s['filters'][2]['minQty'].rstrip('0')
+            info[key]['lot_prec'] = s['filters'][2]['stepSize'].rstrip('0')
+            info[key]['price_min'] = s['filters'][0]['minPrice'].rstrip('0')
+            info[key]['price_prec'] = s['filters'][0]['tickSize'].rstrip('0')
+        return info
+
     def _get_exchange_info(self):
         endpoint = 'exchangeInfo'
         _uri = f'{self.base_uri}{endpoint}'
@@ -286,20 +304,31 @@ class BinanceAPI(ExchangeAPI):
 
     def order_status(self, symbol='BTCUSDT', order_id=None):
         """
-        Valid status values: 'CANCELED', 'EXPIRED', 'NEW'
+        Spot statuses:
+            'NEW': The order has been accepted by the engine.
+            'PARTIALLY_FILLED': A part of the order has been filled.
+            'FILLED': The order has been completed.
+            'CANCELED': The order has been canceled by the user.
+            'PENDING_CANCEL': Currently unused
+            'REJECTED': The order was not accepted by the engine and not proc'd
+            'EXPIRED': The order was canceled according to order type's rules
+                e.g. LIMIT FOK orders with no fill, LIMIT IOC or MARKET orders that partially fill
+                .. or by the exchange
+                e.g. orders canceled during liquidation, orders canceled during maintenance
         """
         if order_id is None:
             resp = self._external_client.get_all_orders(symbol=symbol)
         else:
             resp = self._external_client.get_order(symbol=symbol, orderId=order_id)
 
-        print(resp)
+        self.logger.debug(resp)
         if isinstance(resp, dict):
             return {
                     'order_id': resp['orderId'],
                     'symbol': resp['symbol'],
                     'timestamp': resp['updateTime'],
                     'status': resp['status'],
+                    'side': resp['side'],
                     'price': resp['price'],
                     'quantity': resp['executedQty']
             }
@@ -311,6 +340,7 @@ class BinanceAPI(ExchangeAPI):
                     'symbol': r['symbol'],
                     'timestamp': r['updateTime'],
                     'status': r['status'],
+                    'side': r['side'],
                     'price': r['price'],
                     'quantity': r['executedQty']
                 }
@@ -347,7 +377,7 @@ class BinanceAPI(ExchangeAPI):
         else:
             raise ValueError
 
-        print(resp)
+        self.logger.debug(resp)
         return resp['orderId']
 
     def cancel_order(self, symbol='BTCUSDT', order_id=None):
