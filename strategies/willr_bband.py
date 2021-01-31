@@ -275,6 +275,29 @@ class LiveWillRBband(WillRBband):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.execution_mode = 'live'
+        self._setup_tradelog()
+
+    def _setup_tradelog(self):
+        cols = (
+            'time',
+            'symbol',
+            'side',
+            'size',
+            'filled',
+            'price',
+            'order_id',
+            'status',
+            'bal_base',
+            'bal_quote')
+        write_mode = 'a'
+        if not os.path.isfile('logs/live_trades.csv'):
+            write_mode = 'w'
+        else:
+            cols = ('' for _ in cols)
+
+        with open(f'logs/live_trades.csv', write_mode, newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(cols)
 
     def _get_latest_candle(self, i):
         """
@@ -308,18 +331,18 @@ class LiveWillRBband(WillRBband):
         else:
             return False
 
-    def _live_accounting(self, order_id):
+    def _live_accounting(self, order_id, size):
         """
         For live trading, dump trade to csv
         """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
         bals = self.exchange.get_balances()
-        # row: (price, qty, base_bal, quote_bal)
         row = (
             trade_status['timestamp'],
             trade_status['symbol'],
             trade_status['side'],
+            size,
             trade_status['quantity'],
             trade_status['price'],
             trade_status['order_id'],
@@ -328,10 +351,7 @@ class LiveWillRBband(WillRBband):
             bals[self.cfg['symbol'][1]])
 
         ### Need to process trade_status here
-        write_mode = 'a'
-        if not os.path.isfile('logs/live_trades.csv'):
-            write_mode = 'w'
-        with open(f'logs/live_trades.csv', write_mode, newline='') as f:
+        with open(f'logs/live_trades.csv', 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
 
@@ -368,7 +388,7 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         self.logger.debug(f'placing order: symbol {symbol}, side {side}, size {size}') ### tmp
         order_id = self.exchange.place_order(symbol, side, size)
-        self._live_accounting(order_id)
+        self._live_accounting(order_id, size)
 
     def run(self):
         self.preprocess_data()
