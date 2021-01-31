@@ -278,6 +278,7 @@ class LiveWillRBband(WillRBband):
         self._setup_tradelog()
 
     def _setup_tradelog(self):
+        bals = self.exchange.get_balances()
         cols = (
             'time',
             'symbol',
@@ -289,15 +290,19 @@ class LiveWillRBband(WillRBband):
             'status',
             'bal_base',
             'bal_quote')
+        line = tuple(('' for _ in cols[-2])) + (
+            bals[self.cfg['symbol'][0]], bals[self.cfg['symbol'][1]])
         write_mode = 'a'
         if not os.path.isfile('logs/live_trades.csv'):
             write_mode = 'w'
         else:
-            cols = ('' for _ in cols)
+            cols = None
 
         with open(f'logs/live_trades.csv', write_mode, newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(cols)
+            if cols:
+                writer.writerow(cols)
+            writer.writerow(line)
 
     def _get_latest_candle(self, i):
         """
@@ -318,7 +323,7 @@ class LiveWillRBband(WillRBband):
             if not idx == latest_data_idx + period:
                 self.logger.debug(f'now: {dt.datetime.now().timestamp()}')
                 self.logger.debug(f'last candle: {new_candle.iloc[-1]["datetime"]}')
-                self.logger.debug(f'{latest_data_idx}, {period}')
+                self.logger.debug(f'{latest_data_idx}, {idx}, {period}')
                 raise Exception
 
             row = {c:None for c in self.data[i].columns}
@@ -364,7 +369,7 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         book = self.exchange.get_book(symbol=symbol)
         sig_digs = len(
-            self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1])
+            self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1]) - 1
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
         adjuster = 5*round_down(1/10**sig_digs)
 
