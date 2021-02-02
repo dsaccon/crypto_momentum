@@ -3,6 +3,8 @@ import datetime as dt
 import time
 import json
 import logging
+import traceback
+from functools import wraps
 #from operator import itemgetter
 #import hashlib
 #import hmac
@@ -40,6 +42,25 @@ from . import ExchangeAPI
 
 class NotImplementedError(Exception):
     pass
+
+
+def meta(wait=1):
+    """
+        Retry on API call failure
+    """
+    def deco_meta(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            x = None
+            while True:
+                try:
+                    x = func(*args, **kwargs)
+                    break
+                except Exception as ex:
+                    time.sleep(wait)
+            return x
+        return wrapper
+    return deco_meta
 
 
 class BinanceAPI(ExchangeAPI):
@@ -302,6 +323,7 @@ class BinanceAPI(ExchangeAPI):
                 if b['asset'] == asset
             ][0]
 
+    @meta(wait=1)
     def order_status(self, symbol='BTCUSDT', order_id=None):
         """
         Spot statuses:
