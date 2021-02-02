@@ -280,7 +280,8 @@ class LiveWillRBband(WillRBband):
     def _setup_tradelog(self):
         bals = self.exchange.get_balances()
         cols = (
-            'time',
+            'time_trade',
+            'time_candle',
             'symbol',
             'side',
             'size',
@@ -292,8 +293,11 @@ class LiveWillRBband(WillRBband):
             'bal_base_after',
             'bal_quote_before',
             'bal_quote_after')
-        line = tuple(('' for _ in cols[-2])) + (
-            bals[self.cfg['symbol'][0]], bals[self.cfg['symbol'][1]])
+        line = (
+            ('', '', self.cfg['symbol'][0] + self.cfg['symbol'][1]) +
+            tuple(('' for _ in cols[3:-4])) + (
+                bals[self.cfg['symbol'][0]], '',
+                bals[self.cfg['symbol'][1]], ''))
         write_mode = 'a'
         if not os.path.isfile('logs/live_trades.csv'):
             write_mode = 'w'
@@ -346,6 +350,7 @@ class LiveWillRBband(WillRBband):
         trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
         bals = self.exchange.get_balances()
         row = (
+            self.data[0].index[-1],
             trade_status['timestamp'],
             trade_status['symbol'],
             trade_status['side'],
