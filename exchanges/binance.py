@@ -345,13 +345,17 @@ class BinanceAPI(ExchangeAPI):
 
         self.logger.debug(resp)
         if isinstance(resp, dict):
+            trades = self.get_trades(symbol=symbol, order_id=order_id)
+            qty = sum([float(t['quantity']) for t in trades])
+            avg_pr = sum([float(t['price'])*float(t['quantity']) for t in trades])/qty
             return {
                     'order_id': resp['orderId'],
                     'symbol': resp['symbol'],
                     'timestamp': resp['updateTime'],
                     'status': resp['status'],
                     'side': resp['side'],
-                    'price': resp['price'],
+                    'type': resp['type'],
+                    'price': avg_pr,
                     'quantity': resp['executedQty']
             }
         elif isinstance(resp, list):
@@ -363,6 +367,7 @@ class BinanceAPI(ExchangeAPI):
                     'timestamp': r['updateTime'],
                     'status': r['status'],
                     'side': r['side'],
+                    'type': r['type'],
                     'price': r['price'],
                     'quantity': r['executedQty']
                 }
@@ -370,6 +375,24 @@ class BinanceAPI(ExchangeAPI):
             ]
         else:
             raise ValueError
+
+    @meta(wait=1)
+    def get_trades(self, symbol='BTCUSDT', order_id=None):
+        resp = self._external_client.get_my_trades(symbol=symbol)
+        parser = lambda x: {
+            'order_id': x['orderId'],
+            'symbol': x['symbol'],
+            'timestamp': x['time'],
+            'side': 'BUY' if x['isBuyer'] == 'true' else 'SELL',
+            'type': 'LIMIT' if x['isMaker'] == 'true' else 'MARKET',
+            'price': x['price'],
+            'quantity': x['qty'],
+        }
+        if order_id is None:
+            trades = [parser(tr) for tr in resp]
+        else:
+            trades = [parser(tr) for tr in resp if tr['orderId'] == order_id]
+        return trades
 
     def place_order(self, symbol, side, quantity, type_='MARKET', price=None):
         if side == 'BUY':
