@@ -402,22 +402,32 @@ class LiveWillRBband(WillRBband):
 
     def run(self):
         self.preprocess_data()
+        write_mode = 'a'
+        if not os.path.isfile('logs/live_candles.csv'):
+            write_mode = 'w'
+        with open(f'logs/live_candles.csv', write_mode) as f:
+            writer = csv.writer(f)
+            row = ['time'] + list(self.data[0])
+            if write_mode == 'w':
+                writer.writerow(row)
+            writer.writerow(['' for _ in row])
 
         while True:
             # Periodically update candles from API
             if self._get_latest_candle(0): # Adds 3m candles
                 self._get_latest_candle(1) # Adds 60m candles, hourly
                 self.preprocess_data()
-                #self._on_new_candle(self.data[0].iloc[-1])
                 row = self.data[0].iloc[-1]
                 idx = self.data[0].index[-1]
                 row = row.append(pd.Series([idx], index=['datetime']))
+                with open(f'logs/live_candles.csv', 'a') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([row[-1]] + list(row[:-1]))
                 self._on_new_candle(row)
 
-
-                self.logger.debug(self.data[0])
-                self.logger.debug('')
-                self.logger.debug(self.data[1])
+                self.logger.debug(self.data[0]) ### tmp
+                self.logger.debug('') ### tmp
+                self.logger.debug(self.data[1]) ### tmp
             else:
                 time.sleep(1)
                 if int(str(int(dt.datetime.now().timestamp()))[-1]) % 9 == 0:
