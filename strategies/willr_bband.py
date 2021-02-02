@@ -288,8 +288,10 @@ class LiveWillRBband(WillRBband):
             'price',
             'order_id',
             'status',
-            'bal_base',
-            'bal_quote')
+            'bal_base_before',
+            'bal_base_after',
+            'bal_quote_before',
+            'bal_quote_after')
         line = tuple(('' for _ in cols[-2])) + (
             bals[self.cfg['symbol'][0]], bals[self.cfg['symbol'][1]])
         write_mode = 'a'
@@ -336,7 +338,7 @@ class LiveWillRBband(WillRBband):
         else:
             return False
 
-    def _live_accounting(self, order_id, size):
+    def _live_accounting(self, order_id, size, bals_before):
         """
         For live trading, dump trade to csv
         """
@@ -352,7 +354,9 @@ class LiveWillRBband(WillRBband):
             trade_status['price'],
             trade_status['order_id'],
             trade_status['status'],
+            bals_before[self.cfg['symbol'][0]],
             bals[self.cfg['symbol'][0]],
+            bals_before[self.cfg['symbol'][1]],
             bals[self.cfg['symbol'][1]])
 
         ### Need to process trade_status here
@@ -371,29 +375,30 @@ class LiveWillRBband(WillRBband):
         sig_digs = len(
             self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1]) - 1
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
-        adjuster = 5*round_down(1/10**sig_digs)
+        adjuster_small = 5*round_down(1/10**sig_digs)
+        adjuster_big = 0.85
 
         if side.upper() == 'SELL':
-            # Round down at sd decimals
-            #size = int(bals[self.cfg['symbol'][0]]*10**sd)/10**sd
+            # Round down at sig_digs decimals
             size = f'%.{sig_digs}f' % round_down(bals[self.cfg['symbol'][0]])
+            size = 100 ### tmp
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
         elif side.upper() == 'BUY':
-            #size = bals[self.cfg['symbol'][0]]/float(book['asks'][0][0])
-            # Round down at sd decimals
+            # Round down at sig_digs decimals
             size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
-            size = size*(1 - self.exchange.trading_fee)
-            #size = int(size*10**sd)/10**sd
-            size = f'%.{sig_digs}f' % (round_down(size) - adjuster)
+            size = 100 ### tmp
+            #size = size*(1 - self.exchange.trading_fee)
+            size = size*adjuster_big
+            size = f'%.{sig_digs}f' % (round_down(size) - adjuster_small)
 
-        return size
+        return size, bals
 
     def _place_live_order(self, side):
-        size = self._live_trade_size(side)
+        size, bals = self._live_trade_size(side)
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         self.logger.debug(f'placing order: symbol {symbol}, side {side}, size {size}') ### tmp
         order_id = self.exchange.place_order(symbol, side, size)
-        self._live_accounting(order_id, size)
+        self._live_accounting(order_id, size, bals)
 
     def run(self):
         self.preprocess_data()
