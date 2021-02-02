@@ -349,8 +349,9 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
         bals = self.exchange.get_balances()
+        ts_cdl = str(self.data[0].index[-1])
         row = (
-            self.data[0].index[-1],
+            f'{ts_cdl[:10]}.{ts_cdl[10:]}',
             trade_status['timestamp'],
             trade_status['symbol'],
             trade_status['side'],
