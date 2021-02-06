@@ -108,5 +108,6 @@ class BacktestingBaseClass:
                     _list = pd.Series(_df[col]).tolist()
                     if not True in _list:
                         return False
-                    print(f'{col}: {sum(_ == True for _ in _list)} crosses, out of {len(_list)} rows')
+                    #print(f'{col}: {sum(_ == True for _ in _list)} crosses, out of {len(_list)} rows')
+                    self.logger.debug(f'{col}: {sum(_ == True for _ in _list)} crosses, out of {len(_list)} rows')
         return True
