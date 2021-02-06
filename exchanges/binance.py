@@ -65,11 +65,14 @@ def meta(wait=1):
 
 class BinanceAPI(ExchangeAPI):
     NAME = 'binance'
-    API_URL = 'https://api.binance.com/api'
+    API_URL = 'https://api.binance.com/api/v3'
+    API_URL_FUTURES = 'https://fapi.binance.com'
     API_URL_TESTNET = 'https://testnet.binance.vision/api'
+    API_URL_FUTURES_TESTNET = 'https://testnet.binancefuture.com'
 
     def __init__(self, use_testnet=False):
-        self.base_uri = 'https://api.binance.com/api/v3/'
+        self.logger = logging.getLogger(__name__)
+#        self.base_uri = 'https://api.binance.com/api/v3/'
         self.max_candles_fetch = 1000
         #self.trading_fee = 0.00075
         self.trading_fee = 0.001
@@ -91,118 +94,17 @@ class BinanceAPI(ExchangeAPI):
                 self._API_SECRET = os.environ['BINANCE_SECRET']
             else:
                 self._API_SECRET = None
-#        self.session = self._init_session()
         self._external_client = BinanceClient(self._API_KEY, self._API_SECRET)
 
         if use_testnet:
+            # Works for spot only at the moment
+            # Margin: not supported by Binance
+            # Futures: supported, but had issues connecting. Maybe to do w URL
             self._external_client.API_URL = BinanceAPI.API_URL_TESTNET
-
-        self.logger = logging.getLogger(__name__)
+            self._external_client.FUTURES_URL = BinanceAPI.API_URL_FUTURES_TESTNET
 
         self._symbol_info = self._parse_symbol_info()
 
-
-#    def _init_session(self):
-#        session = requests.session()
-#        session.headers.update({'Accept': 'application/json',
-#                                'User-Agent': 'binance/python',
-#                                'X-MBX-APIKEY': self.API_KEY})
-#        return session
-
-#    def _get(self, path, signed=False, version='v1', **kwargs):
-#        return self._request_api('get', path, signed, version, **kwargs)
-#
-#    def _post(self, path, signed=False, version='v1', **kwargs):
-#        return self._request_api('post', path, signed, version, **kwargs)
-#
-#    def _request_api(self, method, path, signed=False, version='v1', **kwargs):
-#        uri = self._create_api_uri(path, signed, version)
-#        return self._request(method, uri, signed, **kwargs)
-#
-#    def _create_api_uri(self, path, signed=True, version='v1'):
-#        v = 'v3' if signed else version
-#        return self.API_URL + '/' + v + '/' + path
-#
-#    def _generate_signature(self, data):
-#        ordered_data = self._order_params(data)
-#        query_string = '&'.join(["{}={}".format(d[0], d[1]) for d in ordered_data])
-#        m = hmac.new(self.API_SECRET.encode('utf-8'), query_string.encode('utf-8'), hashlib.sha256)
-#        return m.hexdigest()
-#
-#    def _handle_response(self):
-#        """Internal helper for handling API responses from the Binance server.
-#        Raises the appropriate exceptions when necessary; otherwise, returns the
-#        response.
-#        """
-#        if not str(self.response.status_code).startswith('2'):
-#            raise BinanceAPIException(self.response)
-#        try:
-#            return self.response.json()
-#        except ValueError:
-#            raise BinanceRequestException('Invalid Response: %s' % self.response.text)
-#
-#    def _request(self, method, uri, signed, force_params=False, **kwargs):
-#
-#        # set default requests timeout
-#        kwargs['timeout'] = 10
-#
-#        data = kwargs.get('data', None)
-#        if data and isinstance(data, dict):
-#            kwargs['data'] = data
-#
-#            # find any requests params passed and apply them
-#            if 'requests_params' in kwargs['data']:
-#                # merge requests params into kwargs
-#                kwargs.update(kwargs['data']['requests_params'])
-#                del(kwargs['data']['requests_params'])
-#
-#        if signed:
-#            # generate signature
-#            kwargs['data']['timestamp'] = int(time.time() * 1000)
-#            kwargs['data']['signature'] = self._generate_signature(kwargs['data'])
-#
-#        # sort get and post params to match signature order
-#        if data:
-#            # sort post params
-#            kwargs['data'] = self._order_params(kwargs['data'])
-#            # Remove any arguments with values of None.
-#            null_args = [i for i, (key, value) in enumerate(kwargs['data']) if value is None]
-#            for i in reversed(null_args):
-#                del kwargs['data'][i]
-#
-#        # if get request assign data array to params value for requests lib
-#        if data and (method == 'get' or force_params):
-#            kwargs['params'] = '&'.join('%s=%s' % (data[0], data[1]) for data in kwargs['data'])
-#            del(kwargs['data'])
-#
-#        self.response = getattr(self.session, method)(uri, **kwargs)
-#        return self._handle_response()
-#
-#    def _order_params(self, data):
-#        """Convert params to list with signature as last element
-#
-#        :param data:
-#        :return:
-#
-#        """
-#        has_signature = False
-#        params = []
-#        for key, value in data.items():
-#            if key == 'signature':
-#                has_signature = True
-#            else:
-#                params.append((key, value))
-#        # sort parameters by key
-#        params.sort(key=itemgetter(0))
-#        if has_signature:
-#            params.append(('signature', data['signature']))
-#        return params
-#
-#    def get_account_info(self):
-#        return self._get('account', True, data=params)
-#
-#    def create_test_order(self, **params):
-#        return self._post('order/test', True, data=params)
 
     # Internal helper funcs
 
@@ -229,10 +131,11 @@ class BinanceAPI(ExchangeAPI):
         return info
 
     def _get_exchange_info(self):
-        endpoint = 'exchangeInfo'
-        _uri = f'{self.base_uri}{endpoint}'
+        endpoint = '/exchangeInfo'
+        #_uri = f'{self.base_uri}{endpoint}'
+        uri = f'{self.API_URL}{endpoint}'
 
-        resp = json.loads(requests.get(_uri, params=None).text)
+        resp = json.loads(requests.get(uri, params=None).text)
         return resp
 
     # Generic call to external client
@@ -242,15 +145,18 @@ class BinanceAPI(ExchangeAPI):
 
     # Custom functions
 
-    def get_backtest_data(self, *args):
-        return self.get_historical_candles(*args)
+    def get_backtest_data(self, *args, **kwargs):
+        return self.get_historical_candles(*args, **kwargs)
 
+
+    # PUBLIC ENDPOINTS (SPOT & FUTURES)
     def get_historical_candles(
             self,
             symbol: str,
             period: int,
             startTime: dt,
-            endTime: dt) -> pd:
+            endTime: dt,
+            asset_type='spot') -> pd:
 
         """
             Arguments
@@ -265,8 +171,15 @@ class BinanceAPI(ExchangeAPI):
             df (pd): pandas dataframe with collected data from API
         """
 
-        endpoint = 'klines'
-        _uri = f'{self.base_uri}{endpoint}'
+        if asset_type == 'spot':
+            base_uri = self.API_URL
+            endpoint = '/klines'
+        elif asset_type == 'futures':
+            base_uri = self.API_URL_FUTURES
+            endpoint = '/fapi/v1/klines'
+        else:
+            raise ValueError
+        uri = f'{base_uri}{endpoint}'
         startTime = str(int(startTime.timestamp() * 1000))
         endTime = str(int(endTime.timestamp() * 1000))
         _period = self._convert_period(period) # Convert from secs
@@ -278,7 +191,7 @@ class BinanceAPI(ExchangeAPI):
             'limit' : self.max_candles_fetch
         }
 
-        df = pd.DataFrame(json.loads(requests.get(_uri, params=req_params).text))
+        df = pd.DataFrame(json.loads(requests.get(uri, params=req_params).text))
 
         if (len(df.index) == 0):
             return None
@@ -298,19 +211,31 @@ class BinanceAPI(ExchangeAPI):
         df.datetime = df.datetime.apply(lambda r: int(r/1000))
         return df
 
-    def get_book(self, symbol='BTCUSDT'):
-        endpoint = 'depth'
-        _uri = f'{self.base_uri}{endpoint}'
+    def get_book(self, symbol='BTCUSDT', asset_type='spot', levels=100):
+        if asset_type == 'spot':
+            base_uri = self.API_URL
+            endpoint = '/depth'
+        elif asset_type == 'futures':
+            base_uri = self.API_URL_FUTURES
+            endpoint = '/fapi/v1/depth'
+        else:
+            raise ValueError
+        uri = f'{base_uri}{endpoint}'
         req_params = {
             'symbol' : symbol.upper(),
         }
 
-        resp = json.loads(requests.get(_uri, params=req_params).text)
+        resp = json.loads(requests.get(uri, params=req_params).text)
+        resp['bids'] = resp['bids'][:levels]
+        resp['asks'] = resp['asks'][:levels]
         return resp
 
+
+    ### SPOT ###
+
+    # ACCOUNT ENDPOINTS
     def get_balances(self, asset='all'):
         bals = self._external_client.get_account()
-
         if asset == 'all':
             return {
                 b['asset']: float(b['free'])
@@ -381,6 +306,7 @@ class BinanceAPI(ExchangeAPI):
         resp = self._external_client.get_my_trades(symbol=symbol)
         parser = lambda x: {
             'order_id': x['orderId'],
+            'trade_id': x['id'],
             'symbol': x['symbol'],
             'timestamp': x['time'],
             'side': 'BUY' if x['isBuyer'] == 'true' else 'SELL',
@@ -422,7 +348,7 @@ class BinanceAPI(ExchangeAPI):
         else:
             raise ValueError
 
-        self.logger.debug(resp)
+        self.logger.info(resp)
         return resp['orderId']
 
     def cancel_order(self, symbol='BTCUSDT', order_id=None):
@@ -442,3 +368,52 @@ class BinanceAPI(ExchangeAPI):
         if type_ == 'MARKET':
             return self._external_client.create_test_order(
                 symbol=symbol, side=side, type=type_, quantity=quantity)
+
+
+    ### FUTURES ###
+
+    # ACCOUNT ENDPOINTS
+
+    def futures_get_balances(self):
+        resp = self._external_client.futures_account_balance()
+        return {s['asset']:s['balance'] for s in resp}
+
+    @meta(wait=1)
+    def futures_order_status(self, symbol='BTCUSDT', order_id=None):
+        if order_id is None:
+            resp = self._external_client.futures_get_all_orders(symbol=symbol)
+        else:
+            resp = self._external_client.futures_get_order(symbol=symbol, orderId=order_id)
+
+    def futures_get_positions(self, symbol=None):
+        resp = self._external_client.futures_account()
+        if symbol:
+            return [s for s in resp['positions'] if s['symbol'] == symbol][0]
+        else:
+            return resp['positions']
+
+    @meta(wait=1)
+    def futures_get_trades(self, symbol='BTCUSDT', order_id=None):
+        raise NotImplementedError
+
+    def futures_place_order(self, symbol, side, quantity, type_='MARKET', price=None):
+        args = {
+            'symbol': symbol,
+            'quantity': quantity,
+            'side': side,
+            'type': type_
+        }
+        resp = self._external_client.futures_create_order(**args)
+        self.logger.info(resp)
+        return resp['orderId']
+
+        raise NotImplementedError
+
+    def futures_cancel_order(self, symbol='BTCUSDT', order_id=None):
+        raise NotImplementedError
+
+
+    # ...wip
+    def futures_account(self):
+        bals = self._external_client.futures_account()
+        print(bals) ### tmp
