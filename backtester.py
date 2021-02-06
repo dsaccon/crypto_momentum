@@ -5,6 +5,7 @@ import pandas as pd
 import datetime as dt
 import argparse
 import importlib
+import logging
 import concurrent.futures
 import matplotlib.pyplot as plt
 import backtrader as bt
@@ -65,6 +66,8 @@ class Backtest:
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
 
+        logging.info(f'Running backtest with params: {self.trading_cfg}')
+
     def _load_config(self):
         """
         Load config settings from config.json
@@ -114,12 +117,14 @@ class Backtest:
                 self.data_cfg[len(self.df) - 1][0],
                 period[2],
                 start_dt,
-                _end_dt)
+                _end_dt,
+                asset_type=self.trading_cfg['asset_type'])
             df_list.append(new_df)
             subprocess.call("clear")
             remaining = int(
                 ((_end_dt.timestamp() - start_dt.timestamp())/period[2]))
-            print(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
+            #print(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
+            logging.info(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
             secs_til_end = _end_dt.timestamp() - start_dt.timestamp()
             if not self.exchange_obj.max_candles_fetch or secs_til_end < period[2]*self.exchange_obj.max_candles_fetch:
                 break
@@ -132,7 +137,8 @@ class Backtest:
         self.df.append(pd.concat(df_list))
         #self.df[-1] = self.df[-1].reset_index(drop=True)
         self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
-        print(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
+        #print(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
+        logging.info(f'Data collection finished. Dataframe dimensions: {self.df[-1].shape}')
         self.dump_to_csv()
         return True
 
@@ -150,7 +156,8 @@ class Backtest:
             elif len(str(int(self.df[-1]['datetime'][0]))) == 13:
                 dt_col = self.df[-1]['datetime']/1000
             else:
-                print('Something not right with datetime values')
+                #print('Something not right with datetime values')
+                logging.info('Something not right with datetime values')
                 raise ValueError
 #            dt_col = self.df[-1]['datetime']/1000
             self.df[-1]['datetime'] = dt_col.astype(int)
@@ -192,9 +199,12 @@ class Backtest:
                     return False
         else:
             if not len(self.data_cfg) == len(self.csv_file):
-                print(f'Number of csv files provided should be {len(self.data_cfg)}')
-                print(self.data_cfg)
-                print(self.csv_file)
+                #print(f'Number of csv files provided should be {len(self.data_cfg)}')
+                logging.info(f'Number of csv files provided should be {len(self.data_cfg)}')
+                #print(self.data_cfg)
+                #print(self.csv_file)
+                logging.info(self.data_cfg)
+                logging.info(self.csv_file)
                 raise ValueError
             self._get_data_csv()
 
@@ -309,5 +319,9 @@ def test_setup():
     return args
 
 if __name__ == '__main__':
+    if not os.path.isdir('logs/'):
+        os.mkdir('logs')
+    logging.basicConfig(filename='logs/backtester.log', level=logging.INFO)
+    logging.info(f'{int(dt.datetime.now().timestamp())}: Starting backtester')
     args = parse_args()
     Backtest(args).run()
