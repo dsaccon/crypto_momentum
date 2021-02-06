@@ -104,34 +104,26 @@ class WillRBband(BacktestingBaseClass):
         if self.position == 0 and self.position_open_state == 'long_open':
             if row[self.cross_buy_open_col]:
                 # Long entry
-                #self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
                 self.position = 1
                 self.position_open_state = False
-                #self._trades[-1] += '_long_open' ### tmp
                 settings = (row['datetime'], 'Long', 'Open', row['close'])
                 self._execute_trade(settings)
         elif self.position > 0 and row[self.cross_buy_close_col]:
                 # Long close
-                #self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
                 self.position = 0
-                #self._trades[-1] += '_long_close' ### tmp
                 settings = (row['datetime'], 'Long', 'Close', row['close'])
                 self._execute_trade(settings)
                 return True
         elif self.position == 0 and self.position_open_state == 'short_open':
             if row[self.cross_sell_open_col]:
                 # Short entry
-                #self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
                 self.position = -1
                 self.position_open_state = False
-                #self._trades[-1] += '_short_open' ### tmp
                 settings = (row['datetime'], 'Short', 'Open', row['close'])
                 self._execute_trade(settings)
         elif self.position < 0 and row[self.cross_sell_close_col]:
                 # Short close
-                #self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
                 self.position = 0
-                #self._trades[-1] += '_short_close' ### tmp
                 settings = (row['datetime'], 'Short', 'Close', row['close'])
                 self._execute_trade(settings)
                 return True
@@ -260,10 +252,10 @@ class WillRBband(BacktestingBaseClass):
 
         #self._debug_output()
 
-        self.logger.debug(f'--, {self.trades}')
-        self.logger.debug(f'Processed rows: {processed_rows}')
-        self.logger.debug(
-            f'pnl: {self.pnl}, ending capital: {self.end_capital}'
+        self.logger.info(f'Trades: {self.trades}')
+        self.logger.info(f'Processed rows: {processed_rows}')
+        self.logger.info(
+            f'pnl: {self.pnl}'
             f' {round((self.pnl/self.cfg["start_capital"])*100, 2)}%'
             f' num trades: {len(self.trades)}'
             f' dataframe: {self.data[0].shape}')
@@ -319,18 +311,22 @@ class LiveWillRBband(WillRBband):
         period = self.cfg['series'][i][2]
         if now.timestamp() - latest_data_idx > period + 5:
             # Get updated candle from exchange
-            start = dt.datetime.fromtimestamp(now.timestamp() - 2*period)
-            new_candle = self.exchange.get_backtest_data(
-                self.cfg['symbol'][0]+self.cfg['symbol'][1],
-                period,
-                start,
-                now)
-            idx = int(new_candle.iloc[-1]['datetime'])
-            if not idx == latest_data_idx + period:
-                self.logger.debug(f'now: {dt.datetime.now().timestamp()}')
-                self.logger.debug(f'last candle: {new_candle.iloc[-1]["datetime"]}')
-                self.logger.debug(f'{latest_data_idx}, {idx}, {period}')
-                raise Exception
+            while True:
+                start = dt.datetime.fromtimestamp(now.timestamp() - 2*period)
+                new_candle = self.exchange.get_backtest_data(
+                    self.cfg['symbol'][0]+self.cfg['symbol'][1],
+                    period,
+                    start,
+                    now)
+                idx = int(new_candle.iloc[-1]['datetime'])
+                if not idx == latest_data_idx + period:
+                    self.logger.debug(f'now: {dt.datetime.now().timestamp()}')
+                    self.logger.debug(f'last candle: {new_candle.iloc[-1]["datetime"]}')
+                    self.logger.debug(f'{latest_data_idx}, {idx}, {period}')
+                    self.logger.debug(f'Retrying candle fetch')
+                    time.sleep(1)
+                else:
+                    break
 
             row = {c:None for c in self.data[i].columns}
             self.data[i].loc[idx] = row
@@ -349,10 +345,10 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
         bals = self.exchange.get_balances()
-        ts_cdl = str(self.data[0].index[-1])
+        ts_trade = str(trade_status['timestamp'])
         row = (
-            f'{ts_cdl[:10]}.{ts_cdl[10:]}',
-            trade_status['timestamp'],
+            f'{ts_trade[:10]}.{ts_trade[10:]}',
+            self.data[0].index[-1],
             trade_status['symbol'],
             trade_status['side'],
             size,
@@ -386,15 +382,17 @@ class LiveWillRBband(WillRBband):
 
         if side.upper() == 'SELL':
             # Round down at sig_digs decimals
-            size = f'%.{sig_digs}f' % round_down(bals[self.cfg['symbol'][0]])
-            size = 100 ### tmp
+            _size = bals[self.cfg['symbol'][0]]
+            #_size = _size if not _size > 1000 else 1000
+            size = f'%.{sig_digs}f' % round_down(_size)
+            #size = 100 ### tmp
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
         elif side.upper() == 'BUY':
             # Round down at sig_digs decimals
             size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
-            size = 100 ### tmp
+            #size = 100 ### tmp
             #size = size*(1 - self.exchange.trading_fee)
-            size = size*adjuster_big
+            #size = size*adjuster_big
             size = f'%.{sig_digs}f' % (round_down(size) - adjuster_small)
 
         return size, bals
@@ -402,7 +400,7 @@ class LiveWillRBband(WillRBband):
     def _place_live_order(self, side):
         size, bals = self._live_trade_size(side)
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        self.logger.debug(f'placing order: symbol {symbol}, side {side}, size {size}') ### tmp
+        self.logger.info(f'Placing order - symbol: {symbol}, side: {side}, size: {size}')
         order_id = self.exchange.place_order(symbol, side, size)
         self._live_accounting(order_id, size, bals)
 
