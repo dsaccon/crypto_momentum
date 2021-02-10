@@ -72,10 +72,7 @@ class BinanceAPI(ExchangeAPI):
 
     def __init__(self, use_testnet=False):
         self.logger = logging.getLogger(__name__)
-#        self.base_uri = 'https://api.binance.com/api/v3/'
         self.max_candles_fetch = 1000
-        #self.trading_fee = 0.00075
-        self.trading_fee = 0.001
         if use_testnet:
             if 'BINANCE_TEST_KEY' in os.environ:
                 self._API_KEY = os.environ['BINANCE_TEST_KEY']
@@ -94,7 +91,10 @@ class BinanceAPI(ExchangeAPI):
                 self._API_SECRET = os.environ['BINANCE_SECRET']
             else:
                 self._API_SECRET = None
-        self._external_client = BinanceClient(self._API_KEY, self._API_SECRET)
+        if self._API_KEY and self._API_SECRET:
+            self._external_client = BinanceClient(self._API_KEY, self._API_SECRET)
+        else:
+            self._external_client = None
 
         if use_testnet:
             # Works for spot only at the moment
@@ -103,6 +103,7 @@ class BinanceAPI(ExchangeAPI):
             self._external_client.API_URL = BinanceAPI.API_URL_TESTNET
             self._external_client.FUTURES_URL = BinanceAPI.API_URL_FUTURES_TESTNET
 
+        self.trade_fees = self._get_trade_fees()
         self._symbol_info = self._parse_symbol_info()
 
 
@@ -130,10 +131,59 @@ class BinanceAPI(ExchangeAPI):
             info[key]['price_prec'] = s['filters'][0]['tickSize'].rstrip('0')
         return info
 
-    def _get_exchange_info(self):
-        endpoint = '/exchangeInfo'
-        #_uri = f'{self.base_uri}{endpoint}'
-        uri = f'{self.API_URL}{endpoint}'
+    def _get_trade_fees(self):
+        futures_tiers = {
+            0: {'maker': 0.00020, 'taker': 0.00040},
+            1: {'maker': 0.00016, 'taker': 0.00040},
+            2: {'maker': 0.00014, 'taker': 0.00035},
+            3: {'maker': 0.00012, 'taker': 0.00032},
+            4: {'maker': 0.00010, 'taker': 0.00030},
+            5: {'maker': 0.00008, 'taker': 0.00027},
+            6: {'maker': 0.00006, 'taker': 0.00025},
+            7: {'maker': 0.00004, 'taker': 0.00022},
+            'none': {}
+        }
+        spot_symbols = (
+            s['symbol']
+            for s in self._get_exchange_info(asset_type='spot')['symbols']
+        )
+        futures_symbols = (
+            s['symbol']
+            for s in self._get_exchange_info(asset_type='futures')['symbols']
+        )
+        if self._external_client:
+            tier = self._external_client.futures_account().get('feeTier')
+            fees = self._external_client.get_trade_fee()
+        else:
+            tier = 'none'
+            fees = {
+                'tradeFee': [
+                    dict({'symbol': s}.items() | futures_tiers[0].items())
+                    for s in spot_symbols
+                ]
+            }
+
+        fees = {
+            'spot': {
+                s['symbol']: {'maker': s['maker'], 'taker': s['taker']}
+                for s in fees['tradeFee']
+            },
+            'futures': {
+                future: futures_tiers[tier]
+                for future in futures_symbols
+            }
+        }
+        return fees
+
+    def _get_exchange_info(self, asset_type='spot'):
+        if asset_type == 'spot':
+            endpoint = '/exchangeInfo'
+            uri = f'{self.API_URL}{endpoint}'
+        elif asset_type == 'futures':
+            endpoint = '/fapi/v1/exchangeInfo'
+            uri = f'{self.API_URL_FUTURES}{endpoint}'
+        else:
+            raise ValueError
 
         resp = json.loads(requests.get(uri, params=None).text)
         return resp
