@@ -39,6 +39,7 @@ class Backtest:
         if args.period:
             self.data_cfg = [[c[0], args.period[i]] for i, c in enumerate(self.data_cfg)]
         self.trading_cfg['num_periods'] = args.num_periods if args.num_periods else self.num_periods
+        self.trading_cfg['asset_type'] = args.asset_type
         self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
         if args.end is not False:
@@ -62,6 +63,7 @@ class Backtest:
                 _mult = 60*60*24*31
                 i = 2
             _cfg.append(int(_cfg[1][:-i])*_mult)
+        self.trading_cfg['series'] = self.data_cfg
 
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
@@ -245,7 +247,6 @@ class Backtest:
             data = self.df
         else:
             raise DataCollectionError
-
         self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
 
     def run_backtrader(self):
@@ -289,6 +290,9 @@ def parse_args():
     )
     argp.add_argument(
         "--start", type=int, default=None, nargs='*', help="Start of period"
+    )
+    argp.add_argument(
+        "-a", "--asset_type", type=str, default='spot', help="Asset type (spot, futures)"
     )
     argp.add_argument(
         "--end", type=int, default=False, nargs='*', help="End of period"
