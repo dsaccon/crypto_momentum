@@ -12,6 +12,11 @@ import btalib
 
 from .base import BacktestingBaseClass
 
+
+class ApplicationStateError(Exception):
+        pass
+
+
 class WillRBband(BacktestingBaseClass):
 
     def __init__(self, *args, **kwargs):
@@ -86,7 +91,7 @@ class WillRBband(BacktestingBaseClass):
             self.trades.append(trade_settings)
             self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
-            self._place_live_order(side)
+            self._place_live_order(trade_settings + (side,))
         else:
             raise ValueError
 
@@ -268,6 +273,7 @@ class LiveWillRBband(WillRBband):
         super().__init__(*args, **kwargs)
         self.execution_mode = 'live'
         self._setup_tradelog()
+        self.last_order = tuple() # (order_id, bals, size, position_action)
 
     def _setup_tradelog(self):
         bals = self.exchange.get_balances()
@@ -276,6 +282,7 @@ class LiveWillRBband(WillRBband):
             'time_candle',
             'symbol',
             'side',
+            'position_action',
             'size',
             'filled',
             'price',
@@ -338,9 +345,10 @@ class LiveWillRBband(WillRBband):
         else:
             return False
 
-    def _live_accounting(self, order_id, size, bals_before):
+    def _live_accounting(self, order_id, bals_before, size, position_action):
         """
         For live trading, dump trade to csv
+
         """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
@@ -351,6 +359,7 @@ class LiveWillRBband(WillRBband):
             self.data[0].index[-1],
             trade_status['symbol'],
             trade_status['side'],
+            position_action,
             size,
             trade_status['quantity'],
             trade_status['price'],
@@ -361,15 +370,18 @@ class LiveWillRBband(WillRBband):
             bals_before[self.cfg['symbol'][1]],
             bals[self.cfg['symbol'][1]])
 
-        ### Need to process trade_status here
         with open(f'logs/live_trades.csv', 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
 
-    def _live_trade_size(self, side):
+    def _live_trade_size(self, params):
         """
+
         For live trading, calc max trade size allowed based on balance
         ..from API and current order book
+
+        params: (time, <Long|Short>, <Open|Close>, price, side)
+
         """
         bals = self.exchange.get_balances()
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
@@ -380,29 +392,42 @@ class LiveWillRBband(WillRBband):
         adjuster_small = 5*round_down(1/10**sig_digs)
         adjuster_big = 0.85
 
-        if side.upper() == 'SELL':
+        if params[4].upper() == 'SELL' and params[2] == 'Open':
             # Round down at sig_digs decimals
-            _size = bals[self.cfg['symbol'][0]]
+            size = bals[self.cfg['symbol'][0]]
             #_size = _size if not _size > 1000 else 1000
-            size = f'%.{sig_digs}f' % round_down(_size)
-            #size = 100 ### tmp
+            size = f'%.{sig_digs}f' % round_down(size)
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
-        elif side.upper() == 'BUY':
+        if params[4].upper() == 'SELL' and params[2] == 'Close':
+            if not self.last_order[3] == 'short_open':
+                raise ApplicationStateError
+            size = self.last_order[2]
+        elif params[4].upper() == 'BUY' and params[2] == 'Open':
             # Round down at sig_digs decimals
             size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
-            #size = 100 ### tmp
             #size = size*(1 - self.exchange.trading_fee)
+            #size = size*(1 - self.exchange.trade_fees['spot'][symbol]['taker'])
             #size = size*adjuster_big
             size = f'%.{sig_digs}f' % (round_down(size) - adjuster_small)
-
+        elif params[4].upper() == 'BUY' and params[2] == 'Close':
+            if not self.last_order[3] == 'long_open':
+                raise ApplicationStateError
+            size = self.last_order[2]
+        else:
+            raise ApplicationStateError
         return size, bals
 
-    def _place_live_order(self, side):
-        size, bals = self._live_trade_size(side)
+    def _place_live_order(self, params):
+        # params: (time, <Long|Short>, <Open|Close>, price, side)
+        size, bals = self._live_trade_size(params)
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        self.logger.info(f'Placing order - symbol: {symbol}, side: {side}, size: {size}')
-        order_id = self.exchange.place_order(symbol, side, size)
-        self._live_accounting(order_id, size, bals)
+        self.logger.info(
+            f'Placing order - symbol: {symbol}, side: {params[4]}, size: {size}')
+        order_id = self.exchange.place_order(symbol, params[4], size)
+        position_action = f'{params[1].lower()}_{params[2].lower()}'
+        self.last_order = (order_id, bals, size, position_action)
+        #self._live_accounting(order_id, bals, size)
+        self._live_accounting(*self.last_order)
 
     def run(self):
         self.preprocess_data()
