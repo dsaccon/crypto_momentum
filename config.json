@@ -10,7 +10,7 @@
         "60m"
       ]
     ],
-		"num_periods": [null, null],
+    "num_periods": [null, null],
     "exchange": "binance",
     "strategy": "WillRBband",
     "start": [
@@ -48,7 +48,7 @@
     ],
     "end": null,
     "start_capital": 10000,
-    "symbol": ["BTC", "USDT"]
+    "symbol": ["BTC", "USDT"],
     "asset_type": "spot"
   },
   "WillREma_BTC_60m": {
@@ -69,8 +69,8 @@
       0
     ],
     "end": null,
-		"start_capital": 10000,
-    "symbol": ["BTC", "USDT"]
+    "start_capital": 10000,
+    "symbol": ["BTC", "USDT"],
     "asset_type": "spot"
   },
   "HA": {
@@ -95,24 +95,24 @@
     "symbol": "FB"
   },
  "EmaLrc": {
-		"series": [
-			[
-				"FB",
-				"5m"
-			]
-		],
-		"num_periods": [30, 14],
-		"exchange": "ib",
-		"strategy": "EmaLrc",
-		"start": [
-			2020,
-			9,
-			1,
-			0,
-			0
-		],
-		"end": null,
-		"start_capital": 10000,
-		"symbol": "FB"
-	}
+   "series": [
+     [
+       "FB",
+       "5m"
+     ]
+   ],
+   "num_periods": [30, 14],
+   "exchange": "ib",
+   "strategy": "EmaLrc",
+   "start": [
+     2020,
+     9,
+     1,
+     0,
+     0
+   ],
+   "end": null,
+   "start_capital": 10000,
+   "symbol": "FB"
+ }
 }
