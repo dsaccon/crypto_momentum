@@ -261,7 +261,7 @@ class BinanceAPI(ExchangeAPI):
         df.datetime = df.datetime.apply(lambda r: int(r/1000))
         return df
 
-    def get_book(self, symbol='BTCUSDT', asset_type='spot', levels=100):
+    def get_book(self, symbol='BTCUSDT', asset_type='spot', depth=100):
         if asset_type == 'spot':
             base_uri = self.API_URL
             endpoint = '/depth'
@@ -276,8 +276,8 @@ class BinanceAPI(ExchangeAPI):
         }
 
         resp = json.loads(requests.get(uri, params=req_params).text)
-        resp['bids'] = resp['bids'][:levels]
-        resp['asks'] = resp['asks'][:levels]
+        resp['bids'] = resp['bids'][:depth]
+        resp['asks'] = resp['asks'][:depth]
         return resp
 
 
