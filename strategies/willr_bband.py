@@ -291,12 +291,16 @@ class LiveWillRBband(WillRBband):
             'bal_base_before',
             'bal_base_after',
             'bal_quote_before',
-            'bal_quote_after')
+            'bal_quote_after',
+            'netliq_before',
+            'netliq_after')
+        netliq = self._get_netliq()
+        now = int(dt.datetime.now().timestamp())
         line = (
-            ('', '', self.cfg['symbol'][0] + self.cfg['symbol'][1]) +
-            tuple(('' for _ in cols[3:-4])) + (
-                bals[self.cfg['symbol'][0]], '',
-                bals[self.cfg['symbol'][1]], ''))
+            (now, '', self.cfg['symbol'][0] + self.cfg['symbol'][1])
+                + tuple(('' for _ in cols[3:-6])) + (
+                    bals[self.cfg['symbol'][0]], '',
+                    bals[self.cfg['symbol'][1]], '', netliq, netliq))
         write_mode = 'a'
         if not os.path.isfile('logs/live_trades.csv'):
             write_mode = 'w'
@@ -352,7 +356,9 @@ class LiveWillRBband(WillRBband):
         """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
-        bals = self.exchange.get_balances()
+        netliq_before = self._get_netliq(bals=bals_before)
+        bals_after = self.exchange.get_balances()
+        netliq_after = self._get_netliq(bals=bals_after)
         ts_trade = str(trade_status['timestamp'])
         row = (
             f'{ts_trade[:10]}.{ts_trade[10:]}',
@@ -366,9 +372,11 @@ class LiveWillRBband(WillRBband):
             trade_status['order_id'],
             trade_status['status'],
             bals_before[self.cfg['symbol'][0]],
-            bals[self.cfg['symbol'][0]],
+            bals_after[self.cfg['symbol'][0]],
             bals_before[self.cfg['symbol'][1]],
-            bals[self.cfg['symbol'][1]])
+            bals_after[self.cfg['symbol'][1]],
+            netliq_before,
+            netliq_after)
 
         with open(f'logs/live_trades.csv', 'a', newline='') as f:
             writer = csv.writer(f)
@@ -398,8 +406,9 @@ class LiveWillRBband(WillRBband):
             #_size = _size if not _size > 1000 else 1000
             size = f'%.{sig_digs}f' % round_down(size)
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
-        if params[4].upper() == 'SELL' and params[2] == 'Close':
-            if not self.last_order[3] == 'short_open':
+        elif params[4].upper() == 'SELL' and params[2] == 'Close':
+            if not self.last_order[3] == 'long_open':
+                print('self.last_order:', self.last_order) ### tmp
                 raise ApplicationStateError
             size = self.last_order[2]
         elif params[4].upper() == 'BUY' and params[2] == 'Open':
@@ -410,12 +419,23 @@ class LiveWillRBband(WillRBband):
             #size = size*adjuster_big
             size = f'%.{sig_digs}f' % (round_down(size) - adjuster_small)
         elif params[4].upper() == 'BUY' and params[2] == 'Close':
-            if not self.last_order[3] == 'long_open':
+            if not self.last_order[3] == 'short_open':
+                print('self.last_order:', self.last_order) ### tmp
                 raise ApplicationStateError
             size = self.last_order[2]
         else:
+            print(self.last_order, params) ### tmp
             raise ApplicationStateError
         return size, bals
+
+    def _get_netliq(self, bals=None):
+        if not bals:
+            bals = self.exchange.get_balances()
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        book = self.exchange.get_book(symbol=symbol)
+        tkn_netliq = bals[self.cfg['symbol'][0]]*float(book['bids'][0][0])
+        usdt_netliq = bals[self.cfg['symbol'][1]]
+        return tkn_netliq + usdt_netliq
 
     def _place_live_order(self, params):
         # params: (time, <Long|Short>, <Open|Close>, price, side)
