@@ -402,9 +402,14 @@ class LiveWillRBband(WillRBband):
 
         if params[4].upper() == 'SELL' and params[2] == 'Open':
             # Round down at sig_digs decimals
-            size = bals[self.cfg['symbol'][0]]
-            #_size = _size if not _size > 1000 else 1000
-            size = f'%.{sig_digs}f' % round_down(size)
+            if self.cfg['asset_type'] == 'spot':
+                if self.cfg['spot_short_method'] == 'inv':
+                    size = bals[self.cfg['symbol'][0]]
+                    size = f'%.{sig_digs}f' % round_down(size)
+                elif self.cfg['spot_short_method'] == 'margin':
+                    pass # Placeholder
+            elif self.cfg['asset_type'] == 'futures':
+                pass # Placeholder
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
         elif params[4].upper() == 'SELL' and params[2] == 'Close':
             if not self.last_order[3] == 'long_open':
@@ -443,7 +448,13 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         self.logger.info(
             f'Placing order - symbol: {symbol}, side: {params[4]}, size: {size}')
-        order_id = self.exchange.place_order(symbol, params[4], size)
+        if self.cfg['asset_type'] == 'spot':
+            order_id = self.exchange.place_order(symbol, params[4], size)
+        elif self.cfg['asset_type'] == 'futures':
+            pass # Placeholder
+            #order_id = self.exchange.futures_place_order(symbol, params[4], size)
+        else:
+            raise ApplicationStateError
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         self.last_order = (order_id, bals, size, position_action)
         #self._live_accounting(order_id, bals, size)
