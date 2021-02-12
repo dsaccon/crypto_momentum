@@ -420,6 +420,41 @@ class BinanceAPI(ExchangeAPI):
                 symbol=symbol, side=side, type=type_, quantity=quantity)
 
 
+    ### SPOT-FUTURES account transfers ###
+
+    def spot_to_futures_xfer(self, quantity='all', asset='USDT', futures_type='usdt'):
+        self._futures_spot_xfer(quantity, asset, futures_type, True)
+
+    def futures_to_spot_xfer(self, quantity='all', asset='USDT', futures_type='usdt'):
+        self._futures_spot_xfer(quantity, asset, futures_type, False)
+
+    def _futures_spot_xfer(self, quantity, asset, futures_type, from_spot):
+        if from_spot:
+            if futures_type == 'usdt':
+                _type = 1
+            elif futures_type == 'coin':
+                _type = 3
+            else:
+                raise ValueError
+        else:
+            if futures_type == 'usdt':
+                _type = 2
+            elif futures_type == 'coin':
+                _type = 4
+            else:
+                raise ValueError
+        if quantity == 'all' and from_spot:
+            quantity = self.get_balances()[asset]
+        elif quantity == 'all' and not from_spot:
+            quantity = self.futures_get_balances()[asset]
+        kwargs = {
+            'asset': asset,
+            'type': _type,
+            'amount': quantity
+        }
+        self._external_client.futures_account_transfer(**kwargs)
+
+
     ### FUTURES ###
 
     # ACCOUNT ENDPOINTS
