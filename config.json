@@ -23,7 +23,8 @@
     "end": null,
     "start_capital": 10000,
     "symbol": ["BTC", "USDT"],
-    "asset_type": "spot"
+    "asset_type": "spot",
+    "spot_short_method": "inv"
   },
   "WillRBbandCrossMod_BTC_3m_60m": {
     "series": [
@@ -49,7 +50,8 @@
     "end": null,
     "start_capital": 10000,
     "symbol": ["BTC", "USDT"],
-    "asset_type": "spot"
+    "asset_type": "spot",
+    "spot_short_method": "inv"
   },
   "WillREma_BTC_60m": {
     "series": [
@@ -71,7 +73,8 @@
     "end": null,
     "start_capital": 10000,
     "symbol": ["BTC", "USDT"],
-    "asset_type": "spot"
+    "asset_type": "spot",
+    "spot_short_method": "inv"
   },
   "HA": {
     "series": [
