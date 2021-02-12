@@ -24,7 +24,8 @@
     "start_capital": 10000,
     "symbol": ["BTC", "USDT"],
     "asset_type": "spot",
-    "spot_short_method": "inv"
+    "spot_short_method": "inv",
+    "rebal_on_close": true
   },
   "WillRBbandCrossMod_BTC_3m_60m": {
     "series": [
