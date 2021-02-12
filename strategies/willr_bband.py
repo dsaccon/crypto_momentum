@@ -382,13 +382,16 @@ class LiveWillRBband(WillRBband):
             writer = csv.writer(f)
             writer.writerow(row)
 
-    def _live_trade_size(self, params):
+    def _live_trade_size(self, params, rebal_on_close=(False, False)):
         """
 
         For live trading, calc max trade size allowed based on balance
         ..from API and current order book
 
         params: (time, <Long|Short>, <Open|Close>, price, side)
+
+        rebal_on_close[0]: sell to half token bal on Long close
+        rebal_on_close[1]: buy to half usdt bal on Short close
 
         """
         bals = self.exchange.get_balances()
@@ -401,7 +404,7 @@ class LiveWillRBband(WillRBband):
         adjuster_big = 0.85
 
         if params[4].upper() == 'SELL' and params[2] == 'Open':
-            # Round down at sig_digs decimals
+            # Short open
             if self.cfg['asset_type'] == 'spot':
                 if self.cfg['spot_short_method'] == 'inv':
                     size = bals[self.cfg['symbol'][0]]
@@ -412,22 +415,33 @@ class LiveWillRBband(WillRBband):
                 pass # Placeholder
             #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
         elif params[4].upper() == 'SELL' and params[2] == 'Close':
+            # Long close
             if not self.last_order[3] == 'long_open':
-                print('self.last_order:', self.last_order) ### tmp
+                print('self.last_order:', self.last_order) ### tmp. REMOVE AFTER TESTING
                 raise ApplicationStateError
-            size = self.last_order[2]
+            if rebal_on_close[0]:
+                size = bals[self.cfg['symbol'][0]]/2
+                size = f'%.{sig_digs}f' % round_down(size)
+            else:
+                size = self.last_order[2]
         elif params[4].upper() == 'BUY' and params[2] == 'Open':
-            # Round down at sig_digs decimals
+            # Long open
             size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
             #size = size*(1 - self.exchange.trading_fee)
             #size = size*(1 - self.exchange.trade_fees['spot'][symbol]['taker'])
             #size = size*adjuster_big
             size = f'%.{sig_digs}f' % (round_down(size) - adjuster_small)
         elif params[4].upper() == 'BUY' and params[2] == 'Close':
+            # Short close
             if not self.last_order[3] == 'short_open':
-                print('self.last_order:', self.last_order) ### tmp
+                print('self.last_order:', self.last_order) ### tmp. REMOVE AFTER TESTING
                 raise ApplicationStateError
-            size = self.last_order[2]
+            if self.cfg['spot_short_method'] == 'margin':
+                pass # Placeholder
+            if rebal_on_close[1]:
+                pass # Placeholder
+            else:
+                size = self.last_order[2]
         else:
             print(self.last_order, params) ### tmp
             raise ApplicationStateError
