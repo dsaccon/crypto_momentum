@@ -210,12 +210,6 @@ class WillRBband(BacktestingBaseClass):
                 return True
         return False
 
-    def _debug_output(self):
-        self.data[0].to_csv('data/test/test_balances.csv')
-        with open('data/test/davids_cross_pos_entry_anytime.csv', 'w', newline='') as f:
-            writer = csv.writer(f)
-            writer.writerow(self.balances)
-
     def run(self):
         super().run()
         #
@@ -238,8 +232,10 @@ class WillRBband(BacktestingBaseClass):
 
         self.data[0]['position_open_state'] = self._POSs
         self.data[0]['trades'] = self._trades
+
         self.calc_pnl()
-        # Add balances to dataframe
+
+        # Plotting
         balances_dt = [b[0] for b in self.balances]
         bals = [
             self.balances[balances_dt.index(i)][1]
@@ -254,8 +250,6 @@ class WillRBband(BacktestingBaseClass):
 
         self.data[0].fillna(method='ffill').plot(x='date', y='balances')
         plt.show()
-
-        #self._debug_output()
 
         self.logger.info(f'Trades: {self.trades}')
         self.logger.info(f'Processed rows: {processed_rows}')
@@ -383,16 +377,13 @@ class LiveWillRBband(WillRBband):
             writer = csv.writer(f)
             writer.writerow(row)
 
-    def _live_trade_size(self, params, rebal_on_close=(False, False)):
+    def _live_trade_size(self, params):
         """
 
         For live trading, calc max trade size allowed based on balance
         ..from API and current order book
 
         params: (time, <Long|Short>, <Open|Close>, price, side)
-
-        rebal_on_close[0]: sell to half token bal on Long close
-        rebal_on_close[1]: buy to half usdt bal on Short close
 
         """
         bals = self.exchange.get_balances()
@@ -420,7 +411,7 @@ class LiveWillRBband(WillRBband):
             if not self.last_order[3] == 'long_open':
                 print('self.last_order:', self.last_order) ### tmp. REMOVE AFTER TESTING
                 raise ApplicationStateError
-            if rebal_on_close[0]:
+            if self.cfg['rebal_on_close']:
                 size = bals[self.cfg['symbol'][0]]/2
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
@@ -439,8 +430,8 @@ class LiveWillRBband(WillRBband):
                 raise ApplicationStateError
             if self.cfg['spot_short_method'] == 'margin':
                 pass # Placeholder
-            if rebal_on_close[1]:
-                pass # Placeholder
+            if self.cfg['rebal_on_close']:
+                size = self.last_order[2] # No-op. Only rebal on Long close
             else:
                 size = self.last_order[2]
         else:
