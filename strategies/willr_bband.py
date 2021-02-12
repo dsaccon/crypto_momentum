@@ -260,8 +260,9 @@ class WillRBband(BacktestingBaseClass):
         self.logger.info(f'Trades: {self.trades}')
         self.logger.info(f'Processed rows: {processed_rows}')
         self.logger.info(
-            f'pnl: {self.pnl}'
-            f' {round((self.pnl/self.cfg["start_capital"])*100, 2)}%'
+            f'Start bal: {self.cfg["start_capital"]},'
+            f' pnl: {self.pnl}'
+            f' roi: {round((self.pnl/self.cfg["start_capital"])*100, 2)}%'
             f' num trades: {len(self.trades)}'
             f' dataframe: {self.data[0].shape}')
 
