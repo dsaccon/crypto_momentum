@@ -200,6 +200,7 @@ class BinanceAPI(ExchangeAPI):
 
 
     # PUBLIC ENDPOINTS (SPOT & FUTURES)
+    @meta(wait=1)
     def get_historical_candles(
             self,
             symbol: str,
@@ -454,6 +455,20 @@ class BinanceAPI(ExchangeAPI):
         }
         self._external_client.futures_account_transfer(**kwargs)
 
+
+    ### MARGIN ACCOUNT OPERATIONS ###
+
+    def get_margin_asset(self, asset='USDT'):
+        pass
+
+    def get_margin_symbol(self, symbol='BTCUSDT'):
+        pass
+
+    def margin_to_spot_xfer(self):
+        pass
+
+    def spot_to_margin_xfer(self):
+        pass
 
     ### FUTURES ###
 
