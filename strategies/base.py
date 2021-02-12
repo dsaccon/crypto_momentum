@@ -94,6 +94,7 @@ class BacktestingBaseClass:
                     else:
                         raise SanityCheckError
                     self.balances.append((trade[0], balance))
+                    trade += (balance,) # For trade logging purposes
                     position = 0
                 else:
                     raise SanityCheckError
