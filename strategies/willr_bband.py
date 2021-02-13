@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import btalib
 
+from utils.s3 import write_s3
 from .base import BacktestingBaseClass
 
 
@@ -295,13 +296,15 @@ class WillRBband(BacktestingBaseClass):
             for trade in self.trades:
                 writer.writerow((trade[0], None) + (trade[1:]))
 
-        #self.logger.info(f'Trades: {self.trades}')
         self.logger.info(
             f'Start bal: {self.cfg["start_capital"]},'
             f' pnl: {self.pnl}'
             f' roi: {round((self.pnl/self.cfg["start_capital"])*100, 2)}%'
             f' num trades: {len(self.trades)}'
             f' dataframe: {self.data[0].shape}')
+
+        # Upload files to S3
+        write_s3('logs/backtester.log')
 
 class LiveWillRBband(WillRBband):
 
