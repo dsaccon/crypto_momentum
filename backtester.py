@@ -124,7 +124,7 @@ class Base:
             df_list.append(new_df)
             remaining = int(
                 ((_end_dt.timestamp() - start_dt.timestamp())/period[2]))
-            logging.info(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
+            logging.debug(f'Collecting data - {len(df_list)*df_list[0].shape[0]} periods, remaining: {remaining}')
             secs_til_end = _end_dt.timestamp() - start_dt.timestamp()
             if not self.exchange_obj.max_candles_fetch or secs_til_end < period[2]*self.exchange_obj.max_candles_fetch:
                 break
