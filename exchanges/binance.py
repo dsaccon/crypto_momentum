@@ -245,7 +245,7 @@ class BinanceAPI(ExchangeAPI):
         uri = f'{base_uri}{endpoint}'
 
         VALID_LIMITS = [5, 10, 20, 50, 100, 500, 1000, 5000]
-        if depth > 100 and depth in VALID_LIMITS:
+        if depth in VALID_LIMITS:
             limit = depth
         else:
             self.logger.info(f'{depth} not a valid OB depth, reverting to 100')
@@ -255,8 +255,8 @@ class BinanceAPI(ExchangeAPI):
             'limit' : limit,
         }
         resp = json.loads(requests.get(uri, params=req_params).text)
-        resp['bids'] = resp['bids'][:depth]
-        resp['asks'] = resp['asks'][:depth]
+        resp['bids'] = resp['bids'][:depth-1]
+        resp['asks'] = resp['asks'][:depth-1]
         return resp
 
 
