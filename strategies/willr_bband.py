@@ -421,9 +421,11 @@ class LiveWillRBband(WillRBband):
             netliq_before,
             netliq_after)
 
-        with open(f'logs/live_trades.csv', 'a', newline='') as f:
+        trades_logfile = 'logs/live_trades.csv'
+        with open(trades_logfile, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
+        write_s3(trades_logfile)
 
     def _live_trade_size(self, params):
         """
