@@ -22,6 +22,7 @@ class WillRBband(BacktestingBaseClass):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.execution_mode = 'backtesting'
+        self._backtesting_tradelog_setup()
         self.col_tags = {
             'long_entry_cross': ('close', 'bband_20_low'),
             'long_close_cross': ('close', 'bband_20_high'),
@@ -31,6 +32,37 @@ class WillRBband(BacktestingBaseClass):
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
         _execution_type = '_execute_trade_anytime_entry'
         self._on_new_candle = getattr(self, _execution_type)
+
+    def _backtesting_tradelog_setup(self):
+        cols = (
+            'time_candle',
+            'symbol',
+            'position',
+            'action',
+            'price',
+            'balance')
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        line = (
+            self.start_time,
+            symbol,
+            None,
+            None,
+            None,
+            self.cfg["start_capital"]
+        )
+        write_mode = 'a'
+        if not os.path.isfile('logs/backtesting_trades.csv'):
+            write_mode = 'w'
+        else:
+            cols = None
+        if not os.path.isdir(f'logs/plots'):
+            os.mkdir('logs/plots')
+
+        with open(f'logs/backtesting_trades.csv', write_mode, newline='') as f:
+            writer = csv.writer(f)
+            if cols:
+                writer.writerow(cols)
+            writer.writerow(line)
 
     def preprocess_data(self):
         self.cross_buy_open_col = f"crossover:{self.col_tags['long_entry_cross'][0]}-{self.col_tags['long_entry_cross'][1]}"
@@ -215,7 +247,6 @@ class WillRBband(BacktestingBaseClass):
         #
         if not self._crosses_sanity_check():
             raise SanityCheckError
-        processed_rows = 0
         self._trades = [] ### tmp
         self._POSs = [] ### tmp
         self.long_open = False
@@ -248,11 +279,23 @@ class WillRBband(BacktestingBaseClass):
             for i in self.data[0].index
         ]
 
-        self.data[0].fillna(method='ffill').plot(x='date', y='balances')
-        plt.show()
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        if self.cfg['end']:
+            end = self.cfg['end']
+        else:
+            end = dt.datetime.fromtimestamp(self.start_time)
+            end = (end.year, end.month, end.day, end.hour, end.minute)
+        plt_title = f'{symbol} ({self.cfg["asset_type"]}): {self.cfg["start"]} - {end}'
+        self.data[0].fillna(method='ffill').plot(x='date', y='balances', title=plt_title)
+        plt.savefig(f'logs/plots/{symbol}_{self.start_time}.pdf')
 
-        self.logger.info(f'Trades: {self.trades}')
-        self.logger.info(f'Processed rows: {processed_rows}')
+        # Trades logging
+        with open(f'logs/backtesting_trades.csv', 'a', newline='') as f:
+            writer = csv.writer(f)
+            for trade in self.trades:
+                writer.writerow((trade[0], None) + (trade[1:]))
+
+        #self.logger.info(f'Trades: {self.trades}')
         self.logger.info(
             f'Start bal: {self.cfg["start_capital"]},'
             f' pnl: {self.pnl}'
@@ -267,10 +310,10 @@ class LiveWillRBband(WillRBband):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.execution_mode = 'live'
-        self._setup_tradelog()
+        self._live_tradelog_setup()
         self.last_order = tuple() # (order_id, bals, size, position_action)
 
-    def _setup_tradelog(self):
+    def _live_tradelog_setup(self):
         bals = self.exchange.get_balances()
         cols = (
             'time_trade',
