@@ -37,6 +37,11 @@ class Base:
         self.csv_file = args.file
         if args.symbol:
             self.data_cfg = [[args.symbol, c[1]] for c in self.data_cfg]
+            if args.symbol.endswith('USDT'):
+                self.trading_cfg['symbol'] = (args.symbol[:3], args.symbol[3:])
+            else:
+                logging.critical(f'Improper symbol entered on cli: {args.symbol}')
+                raise ValueError
         if args.period:
             self.data_cfg = [[c[0], args.period[i]] for i, c in enumerate(self.data_cfg)]
         self.trading_cfg['num_periods'] = args.num_periods if args.num_periods else self.num_periods
