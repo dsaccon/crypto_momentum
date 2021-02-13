@@ -288,6 +288,7 @@ class WillRBband(BacktestingBaseClass):
             end = (end.year, end.month, end.day, end.hour, end.minute)
         plt_title = f'{symbol} ({self.cfg["asset_type"]}): {self.cfg["start"]} - {end}'
         self.data[0].fillna(method='ffill').plot(x='date', y='balances', title=plt_title)
+        plt_file = f'logs/plots/{symbol}_{self.start_time}.pdf'
         plt.savefig(f'logs/plots/{symbol}_{self.start_time}.pdf')
 
         # Trades logging
@@ -305,6 +306,7 @@ class WillRBband(BacktestingBaseClass):
 
         # Upload files to S3
         write_s3('logs/backtester.log')
+        write_s3(plt_file)
 
 class LiveWillRBband(WillRBband):
 
