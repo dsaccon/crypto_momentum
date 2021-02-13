@@ -5,39 +5,10 @@ import json
 import logging
 import traceback
 from functools import wraps
-#from operator import itemgetter
-#import hashlib
-#import hmac
 import requests
 import pandas as pd
 from binance.client import Client as BinanceClient
 from . import ExchangeAPI
-
-#class BinanceAPIException(Exception):
-#
-#    def __init__(self, response):
-#        self.code = 0
-#        try:
-#            json_res = response.json()
-#        except ValueError:
-#            self.message = 'Invalid JSON error message from Binance: {}'.format(response.text)
-#        else:
-#            self.code = json_res['code']
-#            self.message = json_res['msg']
-#        self.status_code = response.status_code
-#        self.response = response
-#        self.request = getattr(response, 'request', None)
-#
-#    def __str__(self):  # pragma: no cover
-#        return 'APIError(code=%s): %s' % (self.code, self.message)
-
-
-#class BinanceRequestException(Exception):
-#    def __init__(self, message):
-#        self.message = message
-#
-#    def __str__(self):
-#        return 'BinanceRequestException: %s' % self.message
 
 
 class NotImplementedError(Exception):
@@ -272,10 +243,17 @@ class BinanceAPI(ExchangeAPI):
         else:
             raise ValueError
         uri = f'{base_uri}{endpoint}'
+
+        VALID_LIMITS = [5, 10, 20, 50, 100, 500, 1000, 5000]
+        if depth > 100 and depth in VALID_LIMITS:
+            limit = depth
+        else:
+            self.logger.info(f'{depth} not a valid OB depth, reverting to 100')
+            limit = 100
         req_params = {
             'symbol' : symbol.upper(),
+            'limit' : limit,
         }
-
         resp = json.loads(requests.get(uri, params=req_params).text)
         resp['bids'] = resp['bids'][:depth]
         resp['asks'] = resp['asks'][:depth]
