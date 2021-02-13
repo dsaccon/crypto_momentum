@@ -122,7 +122,7 @@ if __name__ == '__main__':
     print(f'Running live trader app, check logs at {logfile}')
     if not os.path.isdir('logs/'):
         os.mkdir('logs')
-    logging.basicConfig(filename=logfile, level=logging.DEBUG)
+    logging.basicConfig(filename=logfile, level=logging.INFO)
     logging.info(f'{int(dt.datetime.now().timestamp())}: Starting live trader')
     args = parse_args()
     LiveTrader(args).run()
