@@ -511,7 +511,6 @@ class LiveWillRBband(WillRBband):
             raise ApplicationStateError
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         self.last_order = (order_id, bals, size, position_action)
-        #self._live_accounting(order_id, bals, size)
         self._live_accounting(*self.last_order)
 
     def run(self):
@@ -526,6 +525,10 @@ class LiveWillRBband(WillRBband):
                 writer.writerow(row)
             writer.writerow(['' for _ in row])
 
+        next_candle_secs = lambda: (
+            self.cfg['series'][0][2] - (
+                dt.datetime.now().timestamp() % self.cfg['series'][0][2]))
+
         while True:
             # Periodically update candles from API
             if self._get_latest_candle(0): # Adds 3m candles
@@ -538,12 +541,10 @@ class LiveWillRBband(WillRBband):
                     writer = csv.writer(f)
                     writer.writerow([row[-1]] + list(row[:-1]))
                 self._on_new_candle(row)
-
-                self.logger.debug(self.data[0]) ### tmp
-                self.logger.debug('') ### tmp
-                self.logger.debug(self.data[1]) ### tmp
+                self.logger.info(f"Next candle in {next_candle_secs()}s")
             else:
                 time.sleep(1)
                 if int(str(int(dt.datetime.now().timestamp()))[-1]) % 9 == 0:
-                    remaining = self.cfg['series'][0][2] - dt.datetime.now().timestamp() % self.cfg['series'][0][2]
-                    self.logger.debug(f"Next candle in {remaining}s")
+                    now = dt.datetime.now().timestamp()
+                    remaining = self.cfg['series'][0][2] - now % self.cfg['series'][0][2]
+                    self.logger.debug(f"Next candle in {next_candle_secs()}s")
