@@ -6,11 +6,10 @@ import numpy as np
 import btalib
 import backtrader as bt
 
-class SanityCheckError(Exception):
+
+class ApplicationStateError(Exception):
     pass
 
-class UnknownStateError(Exception):
-    pass
 
 class BacktestingBaseClass:
 
@@ -40,6 +39,7 @@ class BacktestingBaseClass:
         }
         self.balances = []
         self.logger = logging.getLogger(__name__)
+        self.start_time = int(dt.datetime.now().timestamp())
 
     def preprocess_data(self):
         # Add new cols to dataframe necessary to do calcs in run()
@@ -74,15 +74,16 @@ class BacktestingBaseClass:
         fee = 1 - self.exchange.trade_fees['spot'][symbol]['taker']
         position = 0
         balance = self.cfg['start_capital']
-        for trade in self.trades:
+        for i, trade in enumerate(self.trades):
             if position == 0:
                 if trade[2] == 'Open':
                     if trade[1] == 'Long':
                         position = trade[3]
                     if trade[1] == 'Short':
                         position = -trade[3]
+                    self.trades[i] = trade + (None,) # For trade logging
                 else:
-                    raise SanityCheckError
+                    raise ApplicationStateError
             else:
                 if trade[2] == 'Close':
                     if trade[1] == 'Short' and position < 0:
@@ -92,12 +93,12 @@ class BacktestingBaseClass:
                         # Long closing
                         balance = ((trade[3] - position)/position + 1)*balance*fee
                     else:
-                        raise SanityCheckError
+                        raise ApplicationStateError
                     self.balances.append((trade[0], balance))
-                    trade += (balance,) # For trade logging purposes
+                    self.trades[i] = trade + (balance,) # For trade logging
                     position = 0
                 else:
-                    raise SanityCheckError
+                    raise ApplicationStateError
         self.pnl = balance - self.cfg['start_capital']
 
     def _place_live_order(self, side):
