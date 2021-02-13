@@ -12,6 +12,7 @@ matplotlib = "*"
 bta-lib = "*"
 ta-lib = "*"
 python-binance = "*"
+boto3 = "*"
 
 [dev-packages]
 
