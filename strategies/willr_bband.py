@@ -305,8 +305,8 @@ class WillRBband(BacktestingBaseClass):
             f' dataframe: {self.data[0].shape}')
 
         # Upload files to S3
-        write_s3('logs/backtester.log')
-        write_s3(plt_file)
+        write_s3('logs/backtester.log', bkt=self.s3_bkt_name)
+        write_s3(plt_file, bkt=self.s3_bkt_name)
 
 class LiveWillRBband(WillRBband):
 
@@ -331,6 +331,8 @@ class LiveWillRBband(WillRBband):
             'price',
             'order_id',
             'status',
+            'fee',
+            'fee_asset',
             'bal_base_before',
             'bal_base_after',
             'bal_quote_before',
@@ -414,6 +416,8 @@ class LiveWillRBband(WillRBband):
             trade_status['price'],
             trade_status['order_id'],
             trade_status['status'],
+            trade_status['fee'],
+            trade_status['fee_asset'],
             bals_before[self.cfg['symbol'][0]],
             bals_after[self.cfg['symbol'][0]],
             bals_before[self.cfg['symbol'][1]],
@@ -425,7 +429,7 @@ class LiveWillRBband(WillRBband):
         with open(trades_logfile, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
-        write_s3(trades_logfile)
+        write_s3(trades_logfile, bkt=self.s3_bkt_name)
 
     def _live_trade_size(self, params):
         """
@@ -527,7 +531,7 @@ class LiveWillRBband(WillRBband):
                 writer.writerow(row)
             writer.writerow(['' for _ in row])
 
-        next_candle_secs = lambda: (
+        next_candle_secs = lambda: int(
             self.cfg['series'][0][2] - (
                 dt.datetime.now().timestamp() % self.cfg['series'][0][2]))
 
@@ -543,6 +547,7 @@ class LiveWillRBband(WillRBband):
                     writer = csv.writer(f)
                     writer.writerow([row[-1]] + list(row[:-1]))
                 self._on_new_candle(row)
+                self.logger.info(f'New candle:\n{row}')
                 self.logger.info(f"Next candle in {next_candle_secs()}s")
             else:
                 time.sleep(1)
