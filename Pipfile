@@ -13,6 +13,7 @@ bta-lib = "*"
 ta-lib = "*"
 python-binance = "*"
 boto3 = "*"
+python-dotenv = "*"
 
 [dev-packages]
 
