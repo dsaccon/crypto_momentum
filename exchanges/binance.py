@@ -302,6 +302,8 @@ class BinanceAPI(ExchangeAPI):
             trades = self.get_trades(symbol=symbol, order_id=order_id)
             qty = sum([float(t['quantity']) for t in trades])
             avg_pr = sum([float(t['price'])*float(t['quantity']) for t in trades])/qty
+            fee = sum([float(t['fee']) for t in trades])
+            fee_asset = trades[0]['fee_asset']
             return {
                     'order_id': resp['orderId'],
                     'symbol': resp['symbol'],
@@ -310,6 +312,8 @@ class BinanceAPI(ExchangeAPI):
                     'side': resp['side'],
                     'type': resp['type'],
                     'price': avg_pr,
+                    'fee': fee,
+                    'fee_asset': fee_asset,
                     'quantity': resp['executedQty']
             }
         elif isinstance(resp, list):
@@ -342,6 +346,8 @@ class BinanceAPI(ExchangeAPI):
             'type': 'LIMIT' if x['isMaker'] == 'true' else 'MARKET',
             'price': x['price'],
             'quantity': x['qty'],
+            'fee': x['commission'],
+            'fee_asset': x['commissionAsset'],
         }
         if order_id is None:
             trades = [parser(tr) for tr in resp]
