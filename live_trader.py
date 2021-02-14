@@ -6,6 +6,7 @@ import datetime as dt
 import argparse
 import logging
 import importlib
+from dotenv import load_dotenv
 
 import strategies
 from backtester import Base, parse_args
@@ -21,9 +22,7 @@ class LiveTrader(Base):
 
         # Figure out how much historical data to fetch before trading
         interval = 0
-        #num_periods = lambda _i: 2*(self.strategy.MAX_PERIODS[_i] + 1)
         for i, _cfg in enumerate(self.data_cfg):
-            #if _cfg[2]*num_periods(i) > interval:
             if _cfg[2]*self.strategy.MAX_PERIODS[i] > interval:
                 interval = _cfg[2]*self.strategy.MAX_PERIODS[i]
         _end = dt.datetime.now()
@@ -118,6 +117,7 @@ def test_setup():
 
 
 if __name__ == '__main__':
+    load_dotenv()
     logfile = 'logs/live_trader.log'
     print(f'Running live trader app, check logs at {logfile}')
     if not os.path.isdir('logs/'):
