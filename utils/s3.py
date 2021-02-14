@@ -22,9 +22,12 @@ def get_s3_obj():
         aws_access_key_id=S3_KEY,
         aws_secret_access_key=S3_SECRET)
 
-def write_s3(src_file, bkt='golden-oak', s3_obj=None, s3_path=None):
+def write_s3(src_file, bkt=None, s3_obj=None, s3_path=None):
     if not S3_KEY or not S3_SECRET:
         logger.info('S3 keys not available. Skipping S3 file upload')
+        return False
+    if not bkt:
+        logger.info('S3 bucket name not provided. Skipping S3 file upload')
         return False
     if not s3_obj:
         s3_obj = boto3.resource(
@@ -39,7 +42,7 @@ def write_s3(src_file, bkt='golden-oak', s3_obj=None, s3_path=None):
         try:
             logger.info(f'Uploading {src_file} ...')
             s3_obj.Object(bkt, s3_key).put(Body=f)
-            logger.info(f'S3 upload successful: {src_file}')
+            logger.info(f'S3 upload successful: {src_file}, to {bkt}, {s3_key}')
             return True
         except Exception as e:
             logger.info(e)
