@@ -1,3 +1,4 @@
+import os
 import datetime as dt
 import operator
 import logging
@@ -40,6 +41,7 @@ class BacktestingBaseClass:
         self.balances = []
         self.logger = logging.getLogger(__name__)
         self.start_time = int(dt.datetime.now().timestamp())
+        self.s3_bkt_name = os.environ.get('S3_BUCKET_NAME')
 
     def preprocess_data(self):
         # Add new cols to dataframe necessary to do calcs in run()
