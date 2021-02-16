@@ -75,8 +75,8 @@ class BinanceAPI(ExchangeAPI):
             self._external_client.FUTURES_URL = BinanceAPI.API_URL_FUTURES_TESTNET
 
         self.trade_fees = self._get_trade_fees()
+        self.trade_fee_spot_asset = {'BUY': 'base', 'SELL': 'quote'}
         self._symbol_info = self._parse_symbol_info()
-
 
     # Internal helper funcs
 
@@ -255,8 +255,8 @@ class BinanceAPI(ExchangeAPI):
             'limit' : limit,
         }
         resp = json.loads(requests.get(uri, params=req_params).text)
-        resp['bids'] = resp['bids'][:depth-1]
-        resp['asks'] = resp['asks'][:depth-1]
+        resp['bids'] = resp['bids']
+        resp['asks'] = resp['asks']
         return resp
 
 
