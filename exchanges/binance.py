@@ -255,8 +255,12 @@ class BinanceAPI(ExchangeAPI):
             'limit' : limit,
         }
         resp = json.loads(requests.get(uri, params=req_params).text)
-        resp['bids'] = resp['bids']
-        resp['asks'] = resp['asks']
+        if not depth in VALID_LIMITS:
+            resp['bids'] = resp['bids'][:depth]
+            resp['asks'] = resp['asks'][:depth]
+        else:
+            resp['bids'] = resp['bids']
+            resp['asks'] = resp['asks']
         return resp
 
 
