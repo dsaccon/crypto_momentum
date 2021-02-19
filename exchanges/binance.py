@@ -96,10 +96,22 @@ class BinanceAPI(ExchangeAPI):
         for s in symbols:
             key = s['symbol']
             info[key] = {}
-            info[key]['lot_min'] = s['filters'][2]['minQty'].rstrip('0')
-            info[key]['lot_prec'] = s['filters'][2]['stepSize'].rstrip('0')
-            info[key]['price_min'] = s['filters'][0]['minPrice'].rstrip('0')
-            info[key]['price_prec'] = s['filters'][0]['tickSize'].rstrip('0')
+            i_lot = [
+                i for i,f in enumerate(s['filters'])
+                if f['filterType'] == 'LOT_SIZE'
+            ]
+            i_lot = i_lot[0] if not i_lot == [] else None
+            i_pr = [
+                i for i,f in enumerate(s['filters'])
+                if f['filterType'] == 'PRICE_FILTER'
+            ]
+            i_pr = i_pr[0] if not i_pr == [] else None
+            if not i_lot is None:
+                info[key]['lot_min'] = s['filters'][i_lot]['minQty'].rstrip('0')
+                info[key]['lot_prec'] = s['filters'][i_lot]['stepSize'].rstrip('0')
+            if not i_pr is None:
+                info[key]['price_min'] = s['filters'][i_pr]['minPrice'].rstrip('0')
+                info[key]['price_prec'] = s['filters'][i_pr]['tickSize'].rstrip('0')
         return info
 
     def _get_trade_fees(self):
@@ -409,56 +421,98 @@ class BinanceAPI(ExchangeAPI):
                 symbol=symbol, side=side, type=type_, quantity=quantity)
 
 
-    ### SPOT-FUTURES account transfers ###
+    ### MARGIN ACCOUNT ###
 
-    def spot_to_futures_xfer(self, quantity='all', asset='USDT', futures_type='usdt'):
-        self._futures_spot_xfer(quantity, asset, futures_type, True)
+    def get_margin_account_info(self):
+        resp_acct = self._external_client.get_margin_account()
+        #resp_asset = self._external_client.get_margin_asset(asset=asset)
+        #resp_symbol = self._external_client.get_margin_asset(asset=asset)
+        info = {}
+        info['margin_level'] = resp_acct['marginLevel']
+        return info
 
-    def futures_to_spot_xfer(self, quantity='all', asset='USDT', futures_type='usdt'):
-        self._futures_spot_xfer(quantity, asset, futures_type, False)
+    def margin_get_balances(self):
+        return self.get_margin_assets()
 
-    def _futures_spot_xfer(self, quantity, asset, futures_type, from_spot):
-        if from_spot:
-            if futures_type == 'usdt':
-                _type = 1
-            elif futures_type == 'coin':
-                _type = 3
-            else:
-                raise ValueError
-        else:
-            if futures_type == 'usdt':
-                _type = 2
-            elif futures_type == 'coin':
-                _type = 4
-            else:
-                raise ValueError
-        if quantity == 'all' and from_spot:
-            quantity = self.get_balances()[asset]
-        elif quantity == 'all' and not from_spot:
-            quantity = self.futures_get_balances()[asset]
-        kwargs = {
-            'asset': asset,
-            'type': _type,
-            'amount': quantity
+    def get_margin_assets(self, asset='all'):
+        resp = self._external_client.get_margin_account()
+        assets = {
+            a['asset']: {
+                'free': a['free'],
+                'locked': a['locked'],
+                'borrowed': a['borrowed'],
+                'interest': a['interest'],
+                'net_asset': a['netAsset'],
+            }
+            for a in resp['userAssets']
         }
-        self._external_client.futures_account_transfer(**kwargs)
-
-
-    ### MARGIN ACCOUNT OPERATIONS ###
-
-    def get_margin_asset(self, asset='USDT'):
-        pass
+        if asset == 'all':
+            return assets
+        return assets[asset]
 
     def get_margin_symbol(self, symbol='BTCUSDT'):
-        pass
+        resp = self._external_client.get_margin_account()
+        asset_det = [a for a in resp['userAssets'] if a['asset'] == symbol]
+        if not asset_det == []:
+            return asset_det[0]
+        else:
+            return None
 
-    def margin_to_spot_xfer(self):
-        pass
+    def margin_order_status(self, symbol='BTCUSDT', order_id=None):
+        resp = self._external_client.get_margin_order(symbol=symbol, clientOrderId=order_id)
+        if isinstance(resp, dict):
+            return {
+                'order_id': resp['clientOrderId'],
+                'symbol': resp['symbol'],
+                'timestamp': resp['time'],
+                'status': resp['status'],
+                'side': resp['side'],
+                'type': resp['type'],
+                'price': avg_pr,
+                'fee': None,
+                'fee_asset': None,
+                'quantity': resp['executedQty']
+            }
+        else:
+            return None
 
-    def spot_to_margin_xfer(self):
-        pass
+    def margin_create_loan(self, asset='BTC', quantity=None, cross_margin=True, symbol='ETHBTC'):
+        resp = client._external_client.margin_create_loan(
+            asset=asset, amount=quantity, isIsolated=not cross_margin, symbol=symbol)
+        return resp.get('tranId')
 
-    ### FUTURES ###
+    def margin_repay_loan(self, asset='BTC', quantity=None, cross_margin=True, symbol='ETHBTC'):
+        resp = client._external_client.margin_repay_loan(
+            asset=asset, amount=quantity, isIsolated=not cross_margin, symbol=symbol)
+        return resp.get('tranId')
+
+    def margin_place_order(self, symbol, side, quantity, type_='MARKET', price=None):
+        resp = self._external_client.create_margin_order(
+            symbol=symbol,
+            side=side,
+            type=type_,
+            quantity=quantity,
+            price=price)
+
+        self.logger.info(resp)
+        return resp['orderId']
+
+    # MARGIN<->SPOT TRANSFERS
+
+    def spot_to_margin_xfer(self, quantity='all', asset='USDT'):
+        if quantity == 'all':
+            quantity = str(self.get_balances()[asset])
+        resp = self._external_client.transfer_spot_to_margin(asset=asset, amount=quantity)
+        return resp.get('tranId')
+
+    def margin_to_spot_xfer(self, quantity='all', asset='USDT'):
+        if quantity == 'all':
+            quantity = str(self.get_balances()[asset])
+        resp = self._external_client.transfer_margin_to_spot(asset=asset, amount=quantity)
+        return resp.get('tranId')
+
+
+    ### FUTURES ACCOUNT ###
 
     # ACCOUNT ENDPOINTS
 
@@ -500,6 +554,39 @@ class BinanceAPI(ExchangeAPI):
     def futures_cancel_order(self, symbol='BTCUSDT', order_id=None):
         raise NotImplementedError
 
+    # FUTURES<->SPOT TRANSFERS
+
+    def spot_to_futures_xfer(self, quantity='all', asset='USDT', futures_type='usdt'):
+        self._futures_spot_xfer(quantity, asset, futures_type, True)
+
+    def futures_to_spot_xfer(self, quantity='all', asset='USDT', futures_type='usdt'):
+        self._futures_spot_xfer(quantity, asset, futures_type, False)
+
+    def _futures_spot_xfer(self, quantity, asset, futures_type, from_spot):
+        if from_spot:
+            if futures_type == 'usdt':
+                _type = 1
+            elif futures_type == 'coin':
+                _type = 3
+            else:
+                raise ValueError
+        else:
+            if futures_type == 'usdt':
+                _type = 2
+            elif futures_type == 'coin':
+                _type = 4
+            else:
+                raise ValueError
+        if quantity == 'all' and from_spot:
+            quantity = str(self.get_balances()[asset])
+        elif quantity == 'all' and not from_spot:
+            quantity = str(self.futures_get_balances()[asset])
+        kwargs = {
+            'asset': asset,
+            'type': _type,
+            'amount': quantity
+        }
+        self._external_client.futures_account_transfer(**kwargs)
 
     # ...wip
     def futures_account(self):
