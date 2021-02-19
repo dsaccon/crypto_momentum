@@ -13,6 +13,7 @@ import btalib
 from utils.s3 import write_s3
 from .base import BacktestingBaseClass
 
+from utils.sns import SNS_call ### tmp
 
 class ApplicationStateError(Exception):
         pass
@@ -317,6 +318,10 @@ class LiveWillRBband(WillRBband):
         self.execution_mode = 'live'
         self._live_tradelog_setup()
         self.last_order = tuple() # (order_id, bals, size, position_action)
+        self.neutral_inv = self.cfg['inv_neutral_bal']
+        if self.neutral_inv == 'auto':
+            bals = self.exchange.get_balances()
+            self.neutral_inv = bals[self.cfg['symbol'][0]]
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances()
@@ -365,7 +370,7 @@ class LiveWillRBband(WillRBband):
         now = dt.datetime.now()
         latest_data_idx = int(self.data[i].index[-1])
         period = self.cfg['series'][i][2]
-        if now.timestamp() - latest_data_idx > period + 5:
+        if now.timestamp() - latest_data_idx > period + 2:
             # Get updated candle from exchange
             while True:
                 start = dt.datetime.fromtimestamp(now.timestamp() - 2*period)
@@ -405,8 +410,9 @@ class LiveWillRBband(WillRBband):
         bals_after = self.exchange.get_balances()
         netliq_after = self._get_netliq(bals=bals_after)
         ts_trade = str(trade_status['timestamp'])
+        ts_trade = f'{ts_trade[:10]}.{ts_trade[10:]}'
         row = (
-            f'{ts_trade[:10]}.{ts_trade[10:]}',
+            ts_trade,
             self.data[0].index[-1],
             trade_status['symbol'],
             trade_status['side'],
@@ -430,6 +436,9 @@ class LiveWillRBband(WillRBband):
             writer = csv.writer(f)
             writer.writerow(row)
         write_s3(trades_logfile, bkt=self.s3_bkt_name)
+        SNS_call(msg=(
+            f"Trade: {ts_trade[:10]}, p: {round(trade_status['price'], 2)},"
+            f" s: {round(float(trade_status['quantity']), 5)}, {position_action}")) ### tmp
 
     def _live_trade_size(self, params):
         """
@@ -444,52 +453,95 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         book = self.exchange.get_book(symbol=symbol)
         sig_digs = len(
-            self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1]) - 1
+            self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1])
+            #self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1]) - 1
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
-        adjuster_small = 5*round_down(1/10**sig_digs)
+        adjuster_small = 1*round_down(1/10**sig_digs)
         adjuster_big = 0.85
+        if self.cfg['asset_type'] == 'spot':
+            fee = self.exchange.trade_fees['spot'][symbol]['taker']
+            fee_asset = self.exchange.trade_fee_spot_asset
+        else:
+            raise NotImplementedError
 
         if params[4].upper() == 'SELL' and params[2] == 'Open':
             # Short open
             if self.cfg['asset_type'] == 'spot':
                 if self.cfg['spot_short_method'] == 'inv':
-                    size = bals[self.cfg['symbol'][0]]
-                    size = f'%.{sig_digs}f' % round_down(size)
+                    if self.neutral_inv:
+                        if bals[self.cfg['symbol'][0]] >= self.neutral_inv:
+                            size = self.neutral_inv
+                        else:
+                            self.logger.critical(
+                                f"Cfg'ed {self.cfg['symbol'][0]} neutral bal"
+                                f" self.neutral_inv,"
+                                f" is greater than bal"
+                                f" {bals[self.cfg['symbol'][0]]}")
+                            raise ApplicationStateError
+                    else:
+                        size = bals[self.cfg['symbol'][0]]
                 elif self.cfg['spot_short_method'] == 'margin':
-                    pass # Placeholder
+                    raise NotImplementedError
+                # Adjust size to account for lot precision
+                size = f'%.{sig_digs}f' % round_down(size)
             elif self.cfg['asset_type'] == 'futures':
-                pass # Placeholder
-            #size = bals[self.cfg['symbol'][0]]/float(book['bids'][0][0])
+                raise NotImplementedError
         elif params[4].upper() == 'SELL' and params[2] == 'Close':
             # Long close
-            if not self.last_order[3] == 'long_open':
-                print('self.last_order:', self.last_order) ### tmp. REMOVE AFTER TESTING
-                raise ApplicationStateError
             if self.cfg['rebal_on_close']:
                 size = bals[self.cfg['symbol'][0]]/2
+                size = f'%.{sig_digs}f' % round_down(size)
+            elif fee_asset['BUY'] == 'base':
+                # Pos open paid fees in base token, so pos is slightly smaller
+                size = float(self.last_order[2])*(1 - fee)
+                size = f'%.{sig_digs}f' % round_down(size)
+            elif fee_asset['SELL'] == 'base':
+                # Pos close fees in base token, so increase size slightly
+                size = float(self.last_order[2])*(1 + fee)
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
                 size = self.last_order[2]
         elif params[4].upper() == 'BUY' and params[2] == 'Open':
             # Long open
-            size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
-            #size = size*(1 - self.exchange.trading_fee)
-            #size = size*(1 - self.exchange.trade_fees['spot'][symbol]['taker'])
-            #size = size*adjuster_big
-            size = f'%.{sig_digs}f' % (round_down(size) - adjuster_small)
+            if self.cfg['asset_type'] == 'spot':
+                if self.cfg['spot_short_method'] == 'inv':
+                    if self.neutral_inv:
+                        if bals[self.cfg['symbol'][1]] >= self.neutral_inv*float(book['asks'][0][0]):
+                            size = self.neutral_inv
+                        else:
+                            self.logger.critical(
+                                f"Cfg'ed {self.cfg['symbol'][0]} neutral bal"
+                                f" self.neutral_inv,"
+                                f" is greater than account can buy with"
+                                f" bal {bals[self.cfg['symbol'][1]]}")
+                            raise ApplicationStateError
+                    else:
+                        size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
+                elif self.cfg['spot_short_method'] == 'margin':
+                    raise NotImplementedError
+                # Adjust size to account for lot precision
+                size = f'%.{sig_digs}f' % round_down(size)
+            elif self.cfg['asset_type'] == 'futures':
+                raise NotImplementedError
         elif params[4].upper() == 'BUY' and params[2] == 'Close':
             # Short close
-            if not self.last_order[3] == 'short_open':
-                print('self.last_order:', self.last_order) ### tmp. REMOVE AFTER TESTING
-                raise ApplicationStateError
             if self.cfg['spot_short_method'] == 'margin':
-                pass # Placeholder
+                raise NotImplementedError
             if self.cfg['rebal_on_close']:
                 size = self.last_order[2] # No-op. Only rebal on Long close
+            elif fee_asset['SELL'] == 'base':
+                # Pos open paid fees in base token, so pos is slightly smaller
+                # Note: most likely will never hit this case with any exchange
+                size = float(self.last_order[2])*(1 - fee)
+                size = f'%.{sig_digs}f' % round_down(size)
+            elif fee_asset['BUY'] == 'base':
+                # Pos close fees in base token, so increase size slightly
+                size = float(self.last_order[2])*(1 + fee)
+                size = f'%.{sig_digs}f' % round_down(size)
             else:
                 size = self.last_order[2]
         else:
-            print(self.last_order, params) ### tmp
+            self.logger.critical(self.last_order, params)
             raise ApplicationStateError
         return size, bals
 
