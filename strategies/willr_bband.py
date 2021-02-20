@@ -92,7 +92,6 @@ class WillRBband(BacktestingBaseClass):
             dt_60m = int(_i - _i % modulo)
             self.data[0].at[_i, 'willr_ema'] = self.data[1].at[dt_60m, 'willr_ema']
             self.data[0].at[_i, 'willr_ema_prev'] = self.data[1].at[dt_60m, 'willr_ema_prev']
-#        self.data[0]['willr_ema_prev'] = self.data[0]['willr_ema'].shift(1)
 
         i = 0
         # For Long entry
@@ -454,7 +453,6 @@ class LiveWillRBband(WillRBband):
         book = self.exchange.get_book(symbol=symbol)
         sig_digs = len(
             self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1])
-            #self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1]) - 1
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
         adjuster_small = 1*round_down(1/10**sig_digs)
         adjuster_big = 0.85
@@ -536,7 +534,8 @@ class LiveWillRBband(WillRBband):
                 size = f'%.{sig_digs}f' % round_down(size)
             elif fee_asset['BUY'] == 'base':
                 # Pos close fees in base token, so increase size slightly
-                size = float(self.last_order[2])*(1 + fee)
+                #size = float(self.last_order[2])*(1 + fee)
+                size = float(self.last_order[2])/(1 - fee)
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
                 size = self.last_order[2]
