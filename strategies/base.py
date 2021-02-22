@@ -71,9 +71,9 @@ class BacktestingBaseClass:
         self.preprocess_data()
 
     def calc_pnl(self):
-        #fee = 1 - self.exchange.trading_fee
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        fee = 1 - self.exchange.trade_fees['spot'][symbol]['taker']
+        #fee = 1 - self.exchange.trade_fees['spot'][symbol]['taker']
+        fee = 1 - self.exchange.trade_fees[self.cfg['asset_type']][symbol]['taker']
         position = 0
         balance = self.cfg['start_capital']
         for i, trade in enumerate(self.trades):
