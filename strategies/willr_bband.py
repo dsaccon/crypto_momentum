@@ -352,8 +352,9 @@ class LiveWillRBband(WillRBband):
             'netliq_after')
         netliq = self._get_netliq()
         now = int(dt.datetime.now().timestamp())
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         line = (
-            (now, '', self.cfg['symbol'][0] + self.cfg['symbol'][1])
+            (now, '', symbol)
                 + tuple(('' for _ in cols[3:-6])) + (
                     bals[self.cfg['symbol'][0]], '',
                     bals[self.cfg['symbol'][1]], '', netliq, netliq))
