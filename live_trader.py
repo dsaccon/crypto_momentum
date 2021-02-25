@@ -28,7 +28,7 @@ class LiveTrader(Base):
         _end = dt.datetime.now()
         self.end = (_end.year, _end.month, _end.day, _end.hour, _end.minute)
         self.end_ts = _end.timestamp()
-        interval += 2*max([c[2] for c in self.data_cfg]) # Add some padding
+        interval += 5*max([c[2] for c in self.data_cfg]) # Add some padding
         self.start_ts = int(dt.datetime.now().timestamp()) - interval
 
         longest_period = max([_[2] for _ in self.data_cfg])
