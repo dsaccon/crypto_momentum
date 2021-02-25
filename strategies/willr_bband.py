@@ -108,6 +108,9 @@ class WillRBband(BacktestingBaseClass):
 
     def _execute_trade(self, trade_settings):
         """
+
+        trade_settings: (candle_time, <Long|Short>, <Open|Close>, close_price)
+
         """
         if trade_settings[1] == 'Long' and trade_settings[2] == 'Open':
             side = 'BUY'
@@ -124,7 +127,9 @@ class WillRBband(BacktestingBaseClass):
             self.trades.append(trade_settings)
             self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
-            self._place_live_order(trade_settings + (side,))
+            symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+            ob_snapshot = self.self.exchange.get_book(symbol=symbol, depth=10)
+            self._place_live_order(trade_settings + (side, ob_snapshot))
         else:
             raise ValueError
 
@@ -310,7 +315,7 @@ class WillRBband(BacktestingBaseClass):
 
 class LiveWillRBband(WillRBband):
 
-    MAX_PERIODS = (20, 43) # Corresponding to (3m, 60m) data series
+    MAX_PERIODS = (20, 14 + 43) # Corresponding to (3m, 60m) data series
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -332,7 +337,9 @@ class LiveWillRBband(WillRBband):
             'position_action',
             'size',
             'filled',
-            'price',
+            'executed_price',
+            'candle_close_price',
+            'top_of_book_price',
             'order_id',
             'status',
             'fee',
@@ -398,7 +405,7 @@ class LiveWillRBband(WillRBband):
         else:
             return False
 
-    def _live_accounting(self, order_id, bals_before, size, position_action):
+    def _live_accounting(self, order_id, bals_before, size, position_action, close_price, ob_snapshot):
         """
         For live trading, dump trade to csv
 
@@ -408,6 +415,7 @@ class LiveWillRBband(WillRBband):
         netliq_before = self._get_netliq(bals=bals_before)
         bals_after = self.exchange.get_balances()
         netliq_after = self._get_netliq(bals=bals_after)
+        book_side = 'bids' if trade_status['side'] == 'BUY' else 'asks'
         ts_trade = str(trade_status['timestamp'])
         ts_trade = f'{ts_trade[:10]}.{ts_trade[10:]}'
         row = (
@@ -419,6 +427,8 @@ class LiveWillRBband(WillRBband):
             size,
             trade_status['quantity'],
             trade_status['price'],
+            close_price,
+            ob_snapshot[book_side][0][0],
             trade_status['order_id'],
             trade_status['status'],
             trade_status['fee'],
@@ -445,7 +455,7 @@ class LiveWillRBband(WillRBband):
         For live trading, calc max trade size allowed based on balance
         ..from API and current order book
 
-        params: (time, <Long|Short>, <Open|Close>, price, side)
+        params: (time, <Long|Short>, <Open|Close>, close_price, side, ob_snapshot)
 
         """
         bals = self.exchange.get_balances()
@@ -554,7 +564,11 @@ class LiveWillRBband(WillRBband):
         return tkn_netliq + usdt_netliq
 
     def _place_live_order(self, params):
-        # params: (time, <Long|Short>, <Open|Close>, price, side)
+        """
+
+        params: (time, <Long|Short>, <Open|Close>, close_price, side, ob_snapshot)
+
+        """
         size, bals = self._live_trade_size(params)
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         self.logger.info(
@@ -568,7 +582,9 @@ class LiveWillRBband(WillRBband):
             raise ApplicationStateError
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         self.last_order = (order_id, bals, size, position_action)
-        self._live_accounting(*self.last_order)
+        accting_args = self.last_order + (params[3], params[5])
+        #self._live_accounting(*self.last_order)
+        self._live_accounting(*accting_args)
 
     def run(self):
         self.preprocess_data()
