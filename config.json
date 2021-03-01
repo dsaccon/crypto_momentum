@@ -25,7 +25,37 @@
     "symbol": ["BTC", "USDT"],
     "asset_type": "spot",
     "spot_short_method": "inv",
+    "inv_neutral_bal": false,
     "rebal_on_close": true
+  },
+  "WillRBband_ETH_3m_60m": {
+    "series": [
+      [
+        "ethusdt",
+        "3m"
+      ],
+      [
+        "ethusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["ETH", "USDT"],
+    "asset_type": "spot",
+    "spot_short_method": "inv",
+    "inv_neutral_bal": 10,
+    "rebal_on_close": false
   },
   "WillRBbandCrossMod_BTC_3m_60m": {
     "series": [
