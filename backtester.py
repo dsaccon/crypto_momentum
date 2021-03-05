@@ -140,6 +140,14 @@ class Base:
         return True
 
 
+    def _trim_dataframes(self):
+        # If more than one series, align final timestamps
+
+        # Note this assumes shorter interval series is index 0, longer is 1
+        while self.df[0].index[-1] >= self.df[1].index[-1] + self.data_cfg[1][-1]:
+            self.df[0].drop(self.df[0].tail(1).index, inplace=True)
+
+
     def dump_to_csv(self):
         i = len(self.df) - 1
         filename = (
@@ -175,33 +183,45 @@ class Backtest(Base):
             self.df[-1]['datetime'] = dt_col.astype(int)
             self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
 
-    def _trim_dataframes(self):
-        # If more than one series, make sure final timestamps line up
-
-        # Note this assumes shorter interval series is index 0, longer is 1
-        while self.df[0].index[-1] > self.df[1].index[-1]:
-            self.df[0].drop(self.df[0].tail(1).index, inplace=True)
-
-    def _check_gaps(self):
+    def _validate_data(self):
         """
-        With multiple series, candle alignment can get thrown off with
-        any gaps in the candles. This will clean the dataset to be able
-        to skip over these gaps
+        Do extra checks on data retrived from API
+            - Verify all gaps between timestamps are as expected
+            - Verfiy traded volume is not zero
         """
-
+        time_checks = [False for _ in self.df]
+        vol_checks = [False for _ in self.df]
         for i, _df in enumerate(self.df):
-            shifted_col = _df.datetime.shift(1)
-            shifted_col.iloc[0] = shifted_col.iloc[1] - self.data_cfg[i][2]
-            time_deltas = _df.apply(
+            # Check for timestamp gaps
+            _shifted_col = [list(_df.index)[0] - self.data_cfg[i][2]] + list(_df.index)[:-1]
+            tmp_df = pd.DataFrame(_shifted_col, columns=['time_prv']).set_index(_df.index)
+            tmp_df['time'] = list(_df.index)
+            time_deltas = tmp_df.apply(
                 lambda r: True
-                if r.datetime - shifted_col.iloc[r.name] == self.data_cfg[i][2]
+                if r.time - r.time_prv == self.data_cfg[i][2]
                 else False, axis=1)
-            if time_deltas.all():
-                # Data looks good
-                continue
-            else:
+            if not time_deltas.all():
                 # There are gaps
-                raise DataCollectionError
+                time_checks[i] = [
+                    tmp_df['time'].iloc[i]
+                    for i, chk in enumerate(time_deltas)
+                    if not chk
+                ]
+
+            # Check for 0 volume
+            ### Not working yet ###
+            if 0 in _df['volume']:
+                vol_checks[i] = [
+                    'horace'
+                    for vol in _df['volume']
+                    if not vol == 0
+                ]
+        for i, check in enumerate(time_checks):
+            if check:
+                msg = f"Gaps in {self.trading_cfg['series'][i][1]} series: {time_checks[i]}"
+                logging.warning(msg)
+
+        return not any(time_checks)
 
     def get_data(self):
         # Fetch data from exchange
@@ -224,9 +244,10 @@ class Backtest(Base):
         if len(self.df) == 1:
             return True
         elif len(self.df) == 2:
-            pass
             #self._trim_dataframes()
-            #self._check_gaps()
+            if not self._validate_data():
+                logging.critical('There is something wrong with the source data')
+                raise DataCollectionError
         else:
             raise NotSupportedError
 
