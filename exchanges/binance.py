@@ -190,7 +190,8 @@ class BinanceAPI(ExchangeAPI):
             period: int,
             startTime: dt,
             endTime: dt,
-            asset_type='spot') -> pd:
+            asset_type='spot',
+            completed_only=True) -> pd:
 
         """
             Arguments
@@ -199,6 +200,7 @@ class BinanceAPI(ExchangeAPI):
             period (int): period length (secs)
             startTime (dt): series start time in datetime format
             endTime (dt): series end time in datetime format
+            completed_only: do not show candles that have not been completed
 
             Returns
             ---------
@@ -230,8 +232,8 @@ class BinanceAPI(ExchangeAPI):
         if (len(df.index) == 0):
             return None
 
-        df = df.iloc[:, 0:6]
-        df.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume']
+        df = df.iloc[:, 0:7]
+        df.columns = ['datetime', 'open', 'high', 'low', 'close', 'volume', 'end_time']
 
         df.open      = df.open.astype("float")
         df.high      = df.high.astype("float")
@@ -243,6 +245,10 @@ class BinanceAPI(ExchangeAPI):
 
         df.index = [dt.datetime.utcfromtimestamp(x/1000.0) for x in df.datetime]
         df.datetime = df.datetime.apply(lambda r: int(r/1000))
+        df['completed'] = df.end_time.apply(
+            lambda t: True if dt.datetime.now().timestamp() > t/1000 else False)
+        if completed_only and df['completed'].iloc[-1] == False:
+            df = df.iloc[:-1]
         return df
 
     def get_book(self, symbol='BTCUSDT', asset_type='spot', depth=100):
@@ -591,4 +597,3 @@ class BinanceAPI(ExchangeAPI):
     # ...wip
     def futures_account(self):
         bals = self._external_client.futures_account()
-        print(bals) ### tmp
