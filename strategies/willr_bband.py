@@ -89,7 +89,10 @@ class WillRBband(BacktestingBaseClass):
         # Upsample 60m data to dataframe at index=0
         modulo = int(self.cfg['series'][1][-1])
         for _i, row in self.data[0].iterrows():
-            dt_60m = int(_i - _i % modulo)
+            dt_60m = int(_i - _i % modulo) - modulo
+            if not dt_60m >= self.data[1].index[0]:
+                # Skip first 60m row
+                continue
             self.data[0].at[_i, 'willr_ema'] = self.data[1].at[dt_60m, 'willr_ema']
             self.data[0].at[_i, 'willr_ema_prev'] = self.data[1].at[dt_60m, 'willr_ema_prev']
 
@@ -128,7 +131,7 @@ class WillRBband(BacktestingBaseClass):
             self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
             symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-            ob_snapshot = self.self.exchange.get_book(symbol=symbol, depth=10)
+            ob_snapshot = self.exchange.get_book(symbol=symbol, depth=10)
             self._place_live_order(trade_settings + (side, ob_snapshot))
         else:
             raise ValueError
@@ -377,24 +380,27 @@ class LiveWillRBband(WillRBband):
         now = dt.datetime.now()
         latest_data_idx = int(self.data[i].index[-1])
         period = self.cfg['series'][i][2]
-        if now.timestamp() - latest_data_idx > period + 2:
+        if now.timestamp() - latest_data_idx > 2*period:
             # Get updated candle from exchange
             while True:
-                start = dt.datetime.fromtimestamp(now.timestamp() - 2*period)
+                start = dt.datetime.fromtimestamp(now.timestamp() - 3*period)
                 new_candle = self.exchange.get_backtest_data(
                     self.cfg['symbol'][0]+self.cfg['symbol'][1],
                     period,
                     start,
-                    now)
+                    now,
+                    asset_type=self.cfg['asset_type'])
                 idx = int(new_candle.iloc[-1]['datetime'])
                 if not idx == latest_data_idx + period:
-                    self.logger.debug(f'now: {dt.datetime.now().timestamp()}')
-                    self.logger.debug(f'last candle: {new_candle.iloc[-1]["datetime"]}')
-                    self.logger.debug(f'{latest_data_idx}, {idx}, {period}')
-                    self.logger.debug(f'Retrying candle fetch')
+                    self.logger.info(f'now: {dt.datetime.now().timestamp()}')
+                    self.logger.info(f'last completed candle:')
+                    self.logger.info(f' {new_candle.iloc[-1]["datetime"]}')
+                    self.logger.info(f'{latest_data_idx}, {idx}, {period}')
+                    self.logger.info(f'Retrying candle fetch')
                     time.sleep(1)
                 else:
                     break
+                now = dt.datetime.now()
 
             row = {c:None for c in self.data[i].columns}
             self.data[i].loc[idx] = row
@@ -607,6 +613,7 @@ class LiveWillRBband(WillRBband):
             # Periodically update candles from API
             if self._get_latest_candle(0): # Adds 3m candles
                 self._get_latest_candle(1) # Adds 60m candles, hourly
+
                 self.preprocess_data()
                 row = self.data[0].iloc[-1]
                 idx = self.data[0].index[-1]
