@@ -72,7 +72,7 @@ class BacktestingBaseClass:
 
     def calc_pnl(self):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        fee = 1 - self.exchange.trade_fees[self.cfg['asset_type']][symbol]['taker']
+        fee = 1 - 2*self.exchange.trade_fees[self.cfg['asset_type']][symbol]['taker']
         position = 0
         balance = self.cfg['start_capital']
         for i, trade in enumerate(self.trades):
@@ -89,10 +89,10 @@ class BacktestingBaseClass:
                 if trade[2] == 'Close':
                     if trade[1] == 'Short' and position < 0:
                         # Short closing
-                        balance = ((-position - trade[3])/-position + 1)*balance*2*fee
+                        balance = ((-position - trade[3])/-position + 1)*balance*fee
                     elif trade[1] == 'Long' and position > 0:
                         # Long closing
-                        balance = ((trade[3] - position)/position + 1)*balance*2*fee
+                        balance = ((trade[3] - position)/position + 1)*balance*fee
                     else:
                         raise ApplicationStateError
                     self.balances.append((trade[0], balance))
