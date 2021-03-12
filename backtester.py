@@ -140,6 +140,47 @@ class Base:
         return True
 
 
+    def _validate_data(self):
+        """
+        Do extra checks on data retrived from API
+            - Verify all gaps between timestamps are as expected
+            - Verfiy traded volume is not zero
+        """
+        time_checks = [False for _ in self.df]
+        vol_checks = [False for _ in self.df]
+        for i, _df in enumerate(self.df):
+            # Check for timestamp gaps
+            _shifted_col = [list(_df.index)[0] - self.data_cfg[i][2]] + list(_df.index)[:-1]
+            tmp_df = pd.DataFrame(_shifted_col, columns=['time_prv']).set_index(_df.index)
+            tmp_df['time'] = list(_df.index)
+            time_deltas = tmp_df.apply(
+                lambda r: True
+                if r.time - r.time_prv == self.data_cfg[i][2]
+                else False, axis=1)
+            if not time_deltas.all():
+                # There are gaps
+                time_checks[i] = [
+                    tmp_df['time'].iloc[i]
+                    for i, chk in enumerate(time_deltas)
+                    if not chk
+                ]
+
+            # Check for 0 volume
+            ### Not working yet ###
+            if 0 in _df['volume']:
+                vol_checks[i] = [
+                    True
+                    for vol in _df['volume']
+                    if not vol == 0
+                ]
+        for i, check in enumerate(time_checks):
+            if check:
+                msg = f"Gaps in {self.trading_cfg['series'][i][1]} series: {time_checks[i]}"
+                logging.warning(msg)
+
+        return not any(time_checks)
+
+
     def _trim_dataframes(self):
         # If more than one series, align final timestamps
 
@@ -182,46 +223,6 @@ class Backtest(Base):
 #            dt_col = self.df[-1]['datetime']/1000
             self.df[-1]['datetime'] = dt_col.astype(int)
             self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
-
-    def _validate_data(self):
-        """
-        Do extra checks on data retrived from API
-            - Verify all gaps between timestamps are as expected
-            - Verfiy traded volume is not zero
-        """
-        time_checks = [False for _ in self.df]
-        vol_checks = [False for _ in self.df]
-        for i, _df in enumerate(self.df):
-            # Check for timestamp gaps
-            _shifted_col = [list(_df.index)[0] - self.data_cfg[i][2]] + list(_df.index)[:-1]
-            tmp_df = pd.DataFrame(_shifted_col, columns=['time_prv']).set_index(_df.index)
-            tmp_df['time'] = list(_df.index)
-            time_deltas = tmp_df.apply(
-                lambda r: True
-                if r.time - r.time_prv == self.data_cfg[i][2]
-                else False, axis=1)
-            if not time_deltas.all():
-                # There are gaps
-                time_checks[i] = [
-                    tmp_df['time'].iloc[i]
-                    for i, chk in enumerate(time_deltas)
-                    if not chk
-                ]
-
-            # Check for 0 volume
-            ### Not working yet ###
-            if 0 in _df['volume']:
-                vol_checks[i] = [
-                    'horace'
-                    for vol in _df['volume']
-                    if not vol == 0
-                ]
-        for i, check in enumerate(time_checks):
-            if check:
-                msg = f"Gaps in {self.trading_cfg['series'][i][1]} series: {time_checks[i]}"
-                logging.warning(msg)
-
-        return not any(time_checks)
 
     def get_data(self):
         # Fetch data from exchange
