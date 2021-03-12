@@ -44,6 +44,7 @@ class BinanceAPI(ExchangeAPI):
     def __init__(self, use_testnet=False):
         self.logger = logging.getLogger(__name__)
         self.max_candles_fetch = 1000
+        self.max_trades_fetch = 1000
         if use_testnet:
             if 'BINANCE_TEST_KEY' in os.environ:
                 self._API_KEY = os.environ['BINANCE_TEST_KEY']
@@ -190,8 +191,8 @@ class BinanceAPI(ExchangeAPI):
             period: int,
             startTime: dt,
             endTime: dt,
-            asset_type='spot',
-            completed_only=True) -> pd:
+            asset_type: str = 'spot',
+            completed_only: bool = True) -> pd:
 
         """
             Arguments
@@ -250,6 +251,67 @@ class BinanceAPI(ExchangeAPI):
         if completed_only and df['completed'].iloc[-1] == False:
             df = df.iloc[:-1]
         return df
+
+    @meta(wait=1)
+    def get_historical_trades(
+            self,
+            symbol: str,
+            startTime: dt,
+            endTime: dt = dt.datetime.now(),
+            asset_type: str = 'spot',
+            completed_only: bool = True) -> pd:
+
+        """
+            ###
+            ### WIP: /aggTrades part is not working yet ###
+            ###
+
+            Arguments
+            ---------
+            symbol (str): symbol name of instrument. E.g. 'btcusdt'
+            period (int): period length (secs)
+            startTime (dt): series start time in datetime format
+            endTime (dt): series end time in datetime format
+            completed_only: do not show candles that have not been completed
+
+            Returns
+            ---------
+            df (pd): pandas dataframe with collected data from API
+        """
+
+        base_uri = self.API_URL
+        endpoint = '/trades'
+        if asset_type == 'spot':
+            pass
+            #base_uri = self.API_URL
+            #endpoint = '/klines'
+        elif asset_type == 'futures':
+            pass
+            #base_uri = self.API_URL_FUTURES
+            #endpoint = '/fapi/v1/klines'
+        else:
+            raise ValueError
+        uri = f'{base_uri}{endpoint}'
+        #startTime = str(int(startTime.timestamp() * 1000))
+        endTime = str(int(endTime.timestamp() * 1000))
+        req_params = {
+            'symbol' : symbol.upper(),
+            'limit' : self.max_trades_fetch
+        }
+
+        trades = []
+        _trades = json.loads(requests.get(uri, params=req_params).text)
+        uri = f'{base_uri}/aggTrades'
+        while True:
+            trades = _trades + trades
+            if _trades[0]['time'] < startTime.timestamp()*1000:
+                break
+            start_id = _trades[0]['id'] - 1 - self.max_trades_fetch
+            req_params['fromId'] = str(start_id)
+            _trades = json.loads(requests.get(uri, params=req_params).text)
+            quit() ### tmp
+
+        return trades
 
     def get_book(self, symbol='BTCUSDT', asset_type='spot', depth=100):
         if asset_type == 'spot':
