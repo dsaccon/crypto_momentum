@@ -119,43 +119,38 @@ class WillRBband(BacktestingBaseClass):
             11:21am to 12:18pm inclusively
         """
 
-        modulo = int(self.cfg['series'][1][-1])
         period = self.cfg['series'][1][2] # Period in secs
-        period_m = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
-        self.data[0][f'open_{period_m}_float'] = pd.Series()
-        self.data[0][f'high_{period_m}_float'] = pd.Series()
-        self.data[0][f'low_{period_m}_float'] = pd.Series()
-        self.data[0][f'close_{period_m}_float'] = pd.Series()
+        period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
+        self.data[0][f'open_{period_str}_float'] = pd.Series()
+        self.data[0][f'high_{period_str}_float'] = pd.Series()
+        self.data[0][f'low_{period_str}_float'] = pd.Series()
+        self.data[0][f'close_{period_str}_float'] = pd.Series()
         self.data[0]['Datetime'] = pd.to_datetime(self.data[0].index, unit='s')
         first_row_ts = self.data[0].index[0]
         for _i, row in self.data[0].iterrows():
             if not _i - period >= first_row_ts:
                 continue
-            self.data[0].at[_i, f'open_{period_m}_float'] = self.data[0].loc[_i - period]['open']
-            self.data[0].at[_i, f'high_{period_m}_float'] = self.data[0].loc[_i - period: _i]['high'].max()
-            self.data[0].at[_i, f'low_{period_m}_float'] = self.data[0].loc[_i - period: _i]['low'].min()
-            self.data[0].at[_i, f'close_{period_m}_float'] = self.data[0].loc[_i]['close']
+            self.data[0].at[_i, f'open_{period_str}_float'] = self.data[0].loc[_i - period]['open']
+            self.data[0].at[_i, f'high_{period_str}_float'] = self.data[0].loc[_i - period: _i]['high'].max()
+            self.data[0].at[_i, f'low_{period_str}_float'] = self.data[0].loc[_i - period: _i]['low'].min()
+            self.data[0].at[_i, f'close_{period_str}_float'] = self.data[0].loc[_i]['close']
 
     def _resample_floating_candles(self):
 
-        df_tmp = self.data[0][[f'high_{period_m}_float', f'low_{period_m}_float', f'close_{period_m}_float']]
-        df_tmp.index = pd.to_datetime(self.data[0].index, unit='s')
+        modulo = int(self.cfg['series'][1][-1])
+        period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
+        df_flt = self.data[0][[f'high_{period_str}_float', f'low_{period_str}_float', f'close_{period_str}_float']]
+        df_flt.index = pd.to_datetime(self.data[0].index, unit='s')
 
-        last_idx = df_tmp.index[-1]
+        last_idx = df_flt.index[-1]
         last_idx = int(last_idx.timestamp())
+        period_begin = int(last_idx - last_idx % modulo)
 
-        print(df_tmp) ### tmp
-        _tmp = df_tmp.resample('60min')
-        print(_tmp.interpolate())
-        quit() ### tmp
-        print(df_tmp)
-        quit() ### tmp
-        print(self.data[0])
-        quit() ### tmp
-        test = self.data[0].resample('60min', origin='epoch') ### tmp
-        print(test) ### tmp
-        quit() ### tmp
-            #self.data[0]['willr'] = btalib.willr(self.data[i]['high'], self.data[i]['low'], self.data[i]['close'], period = 14).df
+        offset = int(last_idx % modulo / self.cfg['series'][0][-1])
+        offset_str = str(int(self.cfg['series'][0][1][:-1])*offset) + self.cfg['series'][0][1][-1]
+        df_flt_resampled = df_flt.resample('60min', origin='start', offset=offset_str)
+
+        return df_flt_resampled
 
     def _execute_trade(self, trade_settings):
         """
@@ -643,7 +638,8 @@ class LiveWillRBband(WillRBband):
 
     def run(self):
         self._create_floating_candles()
-        self._resample_floating_candles()
+        self._resample_floating_candles() ### tmp
+        quit() ### tmp
         self.preprocess_data()
         write_mode = 'a'
         if not os.path.isfile('logs/live_candles.csv'):
