@@ -12,6 +12,10 @@ import strategies
 from backtester import Base, parse_args
 
 
+class DataCollectionError(Exception):
+    pass
+
+
 class DataConfigurationError(Exception):
     pass
 
@@ -86,7 +90,9 @@ class LiveTrader(Base):
         if len(self.df) == 1:
             return True
         elif len(self.df) == 2:
-            pass
+            if not self._validate_data():
+                logging.critical('There is something wrong with the source data')
+                raise DataCollectionError
             #self._trim_dataframes()
             #self._check_gaps()
         else:
