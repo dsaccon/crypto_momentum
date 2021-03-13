@@ -15,6 +15,7 @@ from .base import BacktestingBaseClass
 
 from utils.sns import SNS_call ### tmp
 
+
 class ApplicationStateError(Exception):
         pass
 
@@ -86,7 +87,8 @@ class WillRBband(BacktestingBaseClass):
         self.data[i]['bband_20_high_prev'] = self.data[i]['bband_20_high'].shift(1)
         self.data[i]['close_prev'] = self.data[i]['close'].shift(1)
 
-        # Upsample 60m data to dataframe at index=0
+        # Upsample longer interval series to dataframe at index=0
+        period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
         modulo = int(self.cfg['series'][1][-1])
         for _i, row in self.data[0].iterrows():
             dt_60m = int(_i - _i % modulo) - modulo
@@ -95,6 +97,53 @@ class WillRBband(BacktestingBaseClass):
                 continue
             self.data[0].at[_i, 'willr_ema'] = self.data[1].at[dt_60m, 'willr_ema']
             self.data[0].at[_i, 'willr_ema_prev'] = self.data[1].at[dt_60m, 'willr_ema_prev']
+
+        ### Build floating willr/willr_ema indicators
+        num_intervals = int(self.cfg['series'][1][-1]/self.cfg['series'][0][-1])
+        last_idx = self.data[0].index[-1]
+        offset_end = int(last_idx % modulo / self.cfg['series'][0][-1])
+        willr = [None]*num_intervals
+        willr_ema = [None]*num_intervals
+        tag = f'{period_str}_float'
+        # Get resampled longer-interval series
+        for _i, offset_beg in enumerate(range(num_intervals)): # offset from beginning of self.data[0]
+            if offset_beg > offset_end:
+                offset = num_intervals - (offset_beg - offset_end)
+            else:
+                offset = offset_end - offset_beg
+            floating_series = self._resample_floating_candles(offset=offset)
+            if _i == 0:
+                floating_series.to_csv(f'logs/floating/3.floating_60m_0.csv')
+            if _i == 7:
+                floating_series.to_csv(f'logs/floating/3.floating_60m_7.csv')
+            willr[_i] = btalib.willr(
+                floating_series[f'high_{tag}'],
+                floating_series[f'low_{tag}'],
+                floating_series[f'close_{tag}'],
+                period = 14).df
+            willr[_i].rename(columns = {'r': 'willr'}, inplace = True)
+            willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
+            willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
+        willr[0].to_csv(f'logs/floating/4.willr_0.csv') ### tmp
+        willr[7].to_csv(f'logs/floating/4.willr_7.csv') ### tmp
+        willr_ema[0].to_csv(f'logs/floating/4.willr_ema_0.csv') ### tmp
+        willr_ema[7].to_csv(f'logs/floating/4.willr_ema_7.csv') ### tmp
+
+        # Combine & interleave each longer-interval willr series to a shorter-interval df
+        _willr = pd.concat([w for w in willr], sort=True)
+        _willr = _willr.sort_index()
+        _willr['timestamp'] = _willr.index.astype(np.int64) // 10 ** 9
+        _willr.set_index('timestamp', inplace=True)
+        self.data[0][f'willr_{period_str}_float'] = _willr.willr
+
+        _willr_ema = pd.concat([w for w in willr_ema], sort=True)
+        _willr_ema = _willr_ema.sort_index()
+        _willr_ema['timestamp'] = _willr_ema.index.astype(np.int64) // 10 ** 9
+        _willr_ema.set_index('timestamp', inplace=True)
+        self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
+        self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(1)
+        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
+        quit() ### tmp
 
         i = 0
         # For Long entry
@@ -119,26 +168,49 @@ class WillRBband(BacktestingBaseClass):
             11:21am to 12:18pm inclusively
         """
 
-        period = self.cfg['series'][1][2] # Period in secs
-        period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
-        self.data[0][f'open_{period_str}_float'] = pd.Series()
-        self.data[0][f'high_{period_str}_float'] = pd.Series()
-        self.data[0][f'low_{period_str}_float'] = pd.Series()
-        self.data[0][f'close_{period_str}_float'] = pd.Series()
+        period_short = self.cfg['series'][0][2] # Period in secs
+        period_long = self.cfg['series'][1][2] # Period in secs
+        period_long_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
+        tag = f'{period_long_str}_float'
+        self.data[0][f'open_{tag}'] = pd.Series()
+        self.data[0][f'high_{tag}'] = pd.Series()
+        self.data[0][f'low_{tag}'] = pd.Series()
+        self.data[0][f'close_{tag}'] = pd.Series()
         self.data[0]['Datetime'] = pd.to_datetime(self.data[0].index, unit='s')
-        first_row_ts = self.data[0].index[0]
-        for _i, row in self.data[0].iterrows():
-            if not _i - period >= first_row_ts:
+        self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
+        #first_row_ts = self.data[0].index[0]
+        last_row_ts = self.data[0].index[-1]
+        for i, row in self.data[0].iterrows():
+            if i + period_long > last_row_ts:
                 continue
-            self.data[0].at[_i, f'open_{period_str}_float'] = self.data[0].loc[_i - period]['open']
-            self.data[0].at[_i, f'high_{period_str}_float'] = self.data[0].loc[_i - period: _i]['high'].max()
-            self.data[0].at[_i, f'low_{period_str}_float'] = self.data[0].loc[_i - period: _i]['low'].min()
-            self.data[0].at[_i, f'close_{period_str}_float'] = self.data[0].loc[_i]['close']
+            i_end = i + period_long - period_short
+            self.data[0].at[i, f'open_{tag}'] = self.data[0].loc[i]['open']
+            self.data[0].at[i, f'high_{tag}'] = self.data[0].loc[i:i_end]['high'].max()
+            self.data[0].at[i, f'low_{tag}'] = self.data[0].loc[i:i_end]['low'].min()
+            self.data[0].at[i, f'close_{tag}'] = self.data[0].loc[i_end]['close']
+        self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
 
-    def _resample_floating_candles(self):
+    def _resample_floating_candles(self, offset=0):
+        """
+        Pick out the longer series' candles, offset to the final row of the dataFrame
 
+        Used to enable calculating WillR/EMA on floating candles
+
+		Arguments
+		---------
+		offset (int): number of (shorter period) intervals from last row
+
+		Returns
+		---------
+		df (pd): resampled (longer period) dataFrame
+
+        """
         modulo = int(self.cfg['series'][1][-1])
         period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
+        if not period_str.endswith('m'):
+            self.logger.critical(f'Interval for the longer series {period_str} is not correct')
+            raise ValueError
+        _period_str = period_str + 'in'
         df_flt = self.data[0][[f'high_{period_str}_float', f'low_{period_str}_float', f'close_{period_str}_float']]
         df_flt.index = pd.to_datetime(self.data[0].index, unit='s')
 
@@ -146,11 +218,11 @@ class WillRBband(BacktestingBaseClass):
         last_idx = int(last_idx.timestamp())
         period_begin = int(last_idx - last_idx % modulo)
 
-        offset = int(last_idx % modulo / self.cfg['series'][0][-1])
+        offset = int(last_idx % modulo / self.cfg['series'][0][-1]) - offset
         offset_str = str(int(self.cfg['series'][0][1][:-1])*offset) + self.cfg['series'][0][1][-1]
-        df_flt_resampled = df_flt.resample('60min', origin='start', offset=offset_str)
+        df_flt_resampled = df_flt.resample(_period_str, origin='start', offset=offset_str)
 
-        return df_flt_resampled
+        return df_flt_resampled.interpolate()
 
     def _execute_trade(self, trade_settings):
         """
@@ -638,8 +710,6 @@ class LiveWillRBband(WillRBband):
 
     def run(self):
         self._create_floating_candles()
-        self._resample_floating_candles() ### tmp
-        quit() ### tmp
         self.preprocess_data()
         write_mode = 'a'
         if not os.path.isfile('logs/live_candles.csv'):
