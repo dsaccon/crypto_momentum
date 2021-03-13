@@ -112,10 +112,10 @@ class WillRBband(BacktestingBaseClass):
             else:
                 offset = offset_end - offset_beg
             floating_series = self._resample_floating_candles(offset=offset)
-            if _i == 0:
-                floating_series.to_csv(f'logs/floating/3.floating_60m_0.csv')
-            if _i == 7:
-                floating_series.to_csv(f'logs/floating/3.floating_60m_7.csv')
+            if _i == 0: ### tmp
+                floating_series.to_csv(f'logs/floating/3.floating_60m_0.csv') ### tmp
+            if _i == 7: ### tmp
+                floating_series.to_csv(f'logs/floating/3.floating_60m_7.csv') ### tmp
             willr[_i] = btalib.willr(
                 floating_series[f'high_{tag}'],
                 floating_series[f'low_{tag}'],
@@ -143,7 +143,7 @@ class WillRBband(BacktestingBaseClass):
         self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
         self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(1)
         self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
-        quit() ### tmp
+        #quit() ### tmp
 
         i = 0
         # For Long entry
@@ -251,15 +251,19 @@ class WillRBband(BacktestingBaseClass):
         else:
             raise ValueError
 
-    def _execute_trade_anytime_entry(self, row):
+    def _execute_trade_anytime_entry(self, row, floating=True):
         """
         Modified trade logic.
         Anytime entry. Attempts to fix issue of position entry only on the first
             ..3m tick of the 60m period
         """
-        if row['willr_ema'] > row['willr_ema_prev'] and not self.position > 0:
+        tag = ''
+        if floating:
+            tag = f"_{self.cfg['series'][1][1]}_float"
+
+        if row[f'willr_ema{tag}'] > row[f'willr_ema_prev{tag}'] and not self.position > 0:
             self.position_open_state = 'long_open'
-        elif row['willr_ema'] < row['willr_ema_prev'] and not self.position < 0:
+        elif row[f'willr_ema{tag}'] < row[f'willr_ema_prev{tag}'] and not self.position < 0:
             self.position_open_state = 'short_open'
 
         if self.position == 0 and self.position_open_state == 'long_open':
