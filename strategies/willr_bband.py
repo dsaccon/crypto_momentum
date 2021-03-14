@@ -112,7 +112,7 @@ class WillRBband(BacktestingBaseClass):
             else:
                 offset = offset_end - offset_beg
             floating_series = self._resample_floating_candles(offset=offset)
-            #floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
+            floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
             willr[_i] = btalib.willr(
                 floating_series[f'high_{tag}'],
                 floating_series[f'low_{tag}'],
@@ -122,9 +122,9 @@ class WillRBband(BacktestingBaseClass):
             willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
             willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
 
-        #for _i in range(num_intervals): ###
-        #    willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
-        #    willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
+        for _i in range(num_intervals): ###
+            willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
+            willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
 
         # Combine & interleave each longer-interval willr series to a shorter-interval df
         _willr = pd.concat([w for w in willr], sort=True)
@@ -139,7 +139,8 @@ class WillRBband(BacktestingBaseClass):
         _willr_ema.set_index('timestamp', inplace=True)
         self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
         self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
-        #self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
+        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
+        quit() ### tmp
 
         i = 0
         # For Long entry
@@ -162,6 +163,17 @@ class WillRBband(BacktestingBaseClass):
         E.g. for 3m/60m candles, at 12:21pm we receive a new 3m candle timestamped at 12:18pm
             We then construct a 60m candle, consisting of 20 candles timestamped from
             11:21am to 12:18pm inclusively
+
+        There are nuances here that are important to spell out, in order to properly model the data
+            and avoid polluting it with information from the future
+
+        Basically, the current row's timestamp should be considered from 3 perspectives:
+            1. It represents the beginning of the current (shorter) candle that just finished
+                * E.g. 12:18pm
+            2. It represents the one (shorter) period of time before the end of the (longer) candle
+                * The end of the 60m candle is 12:21pm
+            3. It does not represent real-time for the algo. The algo lives one (shorter) period later
+                * The algo lives (i.e. is making decisions) at 12:21pm
         """
 
         period_short = self.cfg['series'][0][2] # Period in secs
@@ -173,18 +185,18 @@ class WillRBband(BacktestingBaseClass):
         self.data[0][f'low_{tag}'] = pd.Series()
         self.data[0][f'close_{tag}'] = pd.Series()
         self.data[0]['Datetime'] = pd.to_datetime(self.data[0].index, unit='s')
-        #self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
-        #first_row_ts = self.data[0].index[0]
-        last_row_ts = self.data[0].index[-1]
+        self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
+        first_row_ts = self.data[0].index[0]
         for i, row in self.data[0].iterrows():
-            if i + period_long > last_row_ts:
+            i_start = i - period_long + period_short
+            i_end = i
+            if i_start < first_row_ts:
                 continue
-            i_end = i + period_long - period_short
-            self.data[0].at[i, f'open_{tag}'] = self.data[0].loc[i]['open']
-            self.data[0].at[i, f'high_{tag}'] = self.data[0].loc[i:i_end]['high'].max()
-            self.data[0].at[i, f'low_{tag}'] = self.data[0].loc[i:i_end]['low'].min()
+            self.data[0].at[i, f'open_{tag}'] = self.data[0].loc[i_start]['open']
+            self.data[0].at[i, f'high_{tag}'] = self.data[0].loc[i_start:i_end]['high'].max()
+            self.data[0].at[i, f'low_{tag}'] = self.data[0].loc[i_start:i_end]['low'].min()
             self.data[0].at[i, f'close_{tag}'] = self.data[0].loc[i_end]['close']
-        #self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
+        self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
 
     def _resample_floating_candles(self, offset=0):
         """
@@ -210,9 +222,10 @@ class WillRBband(BacktestingBaseClass):
         df_flt = self.data[0][[f'high_{period_str}_float', f'low_{period_str}_float', f'close_{period_str}_float']]
         df_flt.index = pd.to_datetime(self.data[0].index, unit='s')
 
-        last_idx = df_flt.index[-1]
-        last_idx = int(last_idx.timestamp())
-        period_begin = int(last_idx - last_idx % modulo)
+        #last_idx = df_flt.index[-1]
+        #last_idx = int(last_idx.timestamp())
+        last_idx = int(df_flt.index[-1].timestamp())
+        #period_begin = int(last_idx - last_idx % modulo)
 
         offset = int(last_idx % modulo / self.cfg['series'][0][-1]) - offset
         offset_str = str(int(self.cfg['series'][0][1][:-1])*offset) + self.cfg['series'][0][1][-1]
