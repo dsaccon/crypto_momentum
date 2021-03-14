@@ -26,7 +26,8 @@
     "asset_type": "spot",
     "spot_short_method": "inv",
     "inv_neutral_bal": false,
-    "rebal_on_close": true
+    "rebal_on_close": false,
+    "floating_willr": true
   },
   "WillRBband_ETH_3m_60m": {
     "series": [
@@ -55,7 +56,8 @@
     "asset_type": "spot",
     "spot_short_method": "inv",
     "inv_neutral_bal": 10,
-    "rebal_on_close": false
+    "rebal_on_close": false,
+    "floating_willr": true
   },
   "WillRBbandCrossMod_BTC_3m_60m": {
     "series": [
