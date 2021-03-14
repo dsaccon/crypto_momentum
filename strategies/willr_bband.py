@@ -112,10 +112,7 @@ class WillRBband(BacktestingBaseClass):
             else:
                 offset = offset_end - offset_beg
             floating_series = self._resample_floating_candles(offset=offset)
-            if _i == 0: ### tmp
-                floating_series.to_csv(f'logs/floating/3.floating_60m_0.csv') ### tmp
-            if _i == 7: ### tmp
-                floating_series.to_csv(f'logs/floating/3.floating_60m_7.csv') ### tmp
+            #floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
             willr[_i] = btalib.willr(
                 floating_series[f'high_{tag}'],
                 floating_series[f'low_{tag}'],
@@ -124,10 +121,10 @@ class WillRBband(BacktestingBaseClass):
             willr[_i].rename(columns = {'r': 'willr'}, inplace = True)
             willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
             willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
-        willr[0].to_csv(f'logs/floating/4.willr_0.csv') ### tmp
-        willr[7].to_csv(f'logs/floating/4.willr_7.csv') ### tmp
-        willr_ema[0].to_csv(f'logs/floating/4.willr_ema_0.csv') ### tmp
-        willr_ema[7].to_csv(f'logs/floating/4.willr_ema_7.csv') ### tmp
+
+        #for _i in range(num_intervals): ###
+        #    willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
+        #    willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
 
         # Combine & interleave each longer-interval willr series to a shorter-interval df
         _willr = pd.concat([w for w in willr], sort=True)
@@ -141,9 +138,8 @@ class WillRBband(BacktestingBaseClass):
         _willr_ema['timestamp'] = _willr_ema.index.astype(np.int64) // 10 ** 9
         _willr_ema.set_index('timestamp', inplace=True)
         self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
-        self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(1)
-        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
-        #quit() ### tmp
+        self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
+        #self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
 
         i = 0
         # For Long entry
@@ -177,7 +173,7 @@ class WillRBband(BacktestingBaseClass):
         self.data[0][f'low_{tag}'] = pd.Series()
         self.data[0][f'close_{tag}'] = pd.Series()
         self.data[0]['Datetime'] = pd.to_datetime(self.data[0].index, unit='s')
-        self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
+        #self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
         #first_row_ts = self.data[0].index[0]
         last_row_ts = self.data[0].index[-1]
         for i, row in self.data[0].iterrows():
@@ -188,7 +184,7 @@ class WillRBband(BacktestingBaseClass):
             self.data[0].at[i, f'high_{tag}'] = self.data[0].loc[i:i_end]['high'].max()
             self.data[0].at[i, f'low_{tag}'] = self.data[0].loc[i:i_end]['low'].min()
             self.data[0].at[i, f'close_{tag}'] = self.data[0].loc[i_end]['close']
-        self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
+        #self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
 
     def _resample_floating_candles(self, offset=0):
         """
@@ -251,14 +247,14 @@ class WillRBband(BacktestingBaseClass):
         else:
             raise ValueError
 
-    def _execute_trade_anytime_entry(self, row, floating=True):
+    def _execute_trade_anytime_entry(self, row):
         """
         Modified trade logic.
         Anytime entry. Attempts to fix issue of position entry only on the first
             ..3m tick of the 60m period
         """
         tag = ''
-        if floating:
+        if self.cfg['floating_willr']:
             tag = f"_{self.cfg['series'][1][1]}_float"
 
         if row[f'willr_ema{tag}'] > row[f'willr_ema_prev{tag}'] and not self.position > 0:
