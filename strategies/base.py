@@ -68,6 +68,7 @@ class BacktestingBaseClass:
                 else False, axis=1)
 
     def run(self):
+        self._create_floating_candles()
         self.preprocess_data()
 
     def calc_pnl(self):
