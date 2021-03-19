@@ -97,7 +97,68 @@ class WillRBband(BacktestingBaseClass):
             self.data[0].at[_i, 'willr_ema'] = self.data[1].at[dt_60m, 'willr_ema']
             self.data[0].at[_i, 'willr_ema_prev'] = self.data[1].at[dt_60m, 'willr_ema_prev']
 
+        if self.cfg['floating_willr']:
+            self._create_floating_willr()
+#        ### Build floating willr/willr_ema indicators
+#        num_intervals = int(self.cfg['series'][1][-1]/self.cfg['series'][0][-1])
+#        last_idx = self.data[0].index[-1]
+#        offset_end = int(last_idx % modulo / self.cfg['series'][0][-1])
+#        willr = [None]*num_intervals
+#        willr_ema = [None]*num_intervals
+#        period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
+#        tag = f'{period_str}_float'
+#        # Get resampled longer-interval series
+#        for _i, offset_beg in enumerate(range(num_intervals)): # offset from beginning of self.data[0]
+#            if offset_beg > offset_end:
+#                offset = num_intervals - (offset_beg - offset_end)
+#            else:
+#                offset = offset_end - offset_beg
+#            floating_series = self._resample_floating_candles(offset=offset)
+##            floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
+#            willr[_i] = btalib.willr(
+#                floating_series[f'high_{tag}'],
+#                floating_series[f'low_{tag}'],
+#                floating_series[f'close_{tag}'],
+#                period = 14).df
+#            willr[_i].rename(columns = {'r': 'willr'}, inplace = True)
+#            willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
+#            willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
+#
+##        for _i in range(num_intervals): ###
+##            willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
+##            willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
+#
+#        # Combine & interleave each longer-interval willr series to a shorter-interval df
+#        _willr = pd.concat([w for w in willr], sort=True)
+#        _willr = _willr.sort_index()
+#        _willr['timestamp'] = _willr.index.astype(np.int64) // 10 ** 9
+#        _willr.set_index('timestamp', inplace=True)
+#        self.data[0][f'willr_{period_str}_float'] = _willr.willr
+#
+#        _willr_ema = pd.concat([w for w in willr_ema], sort=True)
+#        _willr_ema = _willr_ema.sort_index()
+#        _willr_ema['timestamp'] = _willr_ema.index.astype(np.int64) // 10 ** 9
+#        _willr_ema.set_index('timestamp', inplace=True)
+#        self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
+#        self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
+##        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
+
+        i = 0
+        # For Long entry
+        self.get_crosses('close', 'bband_20_low', i)
+
+        # For Long close
+        self.get_crosses('close', 'bband_20_high', i)
+
+        # For Short entry
+        self.get_crosses('close', 'bband_20_high', i, over=False)
+
+        # For Short close
+        self.get_crosses('close', 'bband_20_low', i, over=False)
+
+    def _create_floating_willr(self):
         ### Build floating willr/willr_ema indicators
+        modulo = int(self.cfg['series'][1][-1])
         num_intervals = int(self.cfg['series'][1][-1]/self.cfg['series'][0][-1])
         last_idx = self.data[0].index[-1]
         offset_end = int(last_idx % modulo / self.cfg['series'][0][-1])
@@ -141,20 +202,7 @@ class WillRBband(BacktestingBaseClass):
         self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
 #        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
 
-        i = 0
-        # For Long entry
-        self.get_crosses('close', 'bband_20_low', i)
-
-        # For Long close
-        self.get_crosses('close', 'bband_20_high', i)
-
-        # For Short entry
-        self.get_crosses('close', 'bband_20_high', i, over=False)
-
-        # For Short close
-        self.get_crosses('close', 'bband_20_low', i, over=False)
-
-    def _create_floating_candles(self):
+    def _create_floating_ohlc(self):
         """
         Construct a series of OHLC floating candles for the longer series,
             offset by the current period of the shorter candle
@@ -379,7 +427,9 @@ class WillRBband(BacktestingBaseClass):
         return False
 
     def run(self):
-        super().run()
+        if self.cfg['floating_willr']:
+            self._create_floating_ohlc()
+        self.preprocess_data()
         #
         if not self._crosses_sanity_check():
             raise SanityCheckError
@@ -721,8 +771,10 @@ class LiveWillRBband(WillRBband):
         self._live_accounting(*accting_args)
 
     def run(self):
-        self._create_floating_candles()
+        if self.cfg['floating_willr']:
+            self._create_floating_ohlc()
         self.preprocess_data()
+        #
         write_mode = 'a'
         if not os.path.isfile('logs/live_candles.csv'):
             write_mode = 'w'
