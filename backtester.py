@@ -44,8 +44,10 @@ class Base:
                 raise ValueError
         if args.period:
             self.data_cfg = [[c[0], args.period[i]] for i, c in enumerate(self.data_cfg)]
-        self.trading_cfg['num_periods'] = args.num_periods if args.num_periods else self.num_periods
-        self.trading_cfg['asset_type'] = args.asset_type
+        if args.num_periods:
+            self.trading_cfg['num_periods'] = args.num_periods
+        if args.asset_type:
+            self.trading_cfg['asset_type'] = args.asset_type
         self.start = tuple(args.start) if args.start else self.start
         self.start_ts = int(dt.datetime(*self.start).timestamp())
         if args.end is not False:
@@ -97,7 +99,6 @@ class Base:
         _end = cfg[self.run_name]['end']
         self.end = tuple(_end) if _end else _end
         self.start_capital = cfg[self.run_name]['start_capital']
-        self.num_periods = cfg[self.run_name]['num_periods']
         if self.end:
             self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
         self.data_cfg = cfg[self.run_name]['series']
@@ -175,7 +176,11 @@ class Base:
                 ]
         for i, check in enumerate(time_checks):
             if check:
-                msg = f"Gaps in {self.trading_cfg['series'][i][1]} series: {time_checks[i]}"
+                t = [
+                    dt.datetime.fromtimestamp(_t).strftime('%y-%m-%d:%H:%M')
+                    for _t in time_checks[i]
+                ]
+                msg = f"Gaps in {self.trading_cfg['series'][i][1]} series: {t}"
                 logging.warning(msg)
 
         return not any(time_checks)
@@ -327,7 +332,7 @@ def parse_args():
         "--end", type=int, default=False, nargs='*', help="End of period. For backtesting only"
     )
     argp.add_argument(
-        "-a", "--asset_type", type=str, default='spot', help="Asset type (spot, futures)"
+        "-a", "--asset_type", type=str, default=None, help="Asset type (spot, futures)"
     )
     argp.add_argument(
         "-p", "--period", type=str, default=None, nargs="*", help="Candle period"
