@@ -127,6 +127,19 @@ class BinanceAPI(ExchangeAPI):
             7: {'maker': 0.00004, 'taker': 0.00022},
             'none': {}
         }
+        spot_tiers = {
+            0: {'maker': 0.0010, 'taker': 0.0010},
+            1: {'maker': 0.0009, 'taker': 0.0010},
+            2: {'maker': 0.0008, 'taker': 0.0010},
+            3: {'maker': 0.0007, 'taker': 0.0010},
+            4: {'maker': 0.0007, 'taker': 0.00090},
+            5: {'maker': 0.0006, 'taker': 0.00080},
+            6: {'maker': 0.0005, 'taker': 0.00070},
+            7: {'maker': 0.0004, 'taker': 0.00060},
+            8: {'maker': 0.0003, 'taker': 0.00050},
+            9: {'maker': 0.0002, 'taker': 0.00040},
+            'none': {'maker': 0.0010, 'taker': 0.0010},
+        }
         spot_symbols = (
             s['symbol']
             for s in self._get_exchange_info(asset_type='spot')['symbols']
@@ -142,7 +155,7 @@ class BinanceAPI(ExchangeAPI):
             tier = 'none'
             fees = {
                 'tradeFee': [
-                    dict({'symbol': s}.items() | futures_tiers[0].items())
+                    dict({'symbol': s}.items() | spot_tiers[0].items())
                     for s in spot_symbols
                 ]
             }
