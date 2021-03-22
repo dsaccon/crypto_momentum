@@ -1,0 +1,8 @@
+INFO:root:1614209408: Starting live trader
+INFO:root:Running LiveTrader with params: {'series': [['ethusdt', '3m', 180], ['ethusdt', '60m', 3600]], 'num_periods': [None, None], 'exchange': 'binance', 'strategy': 'WillRBband', 'start': [2020, 1, 1, 0, 0], 'end': None, 'start_capital': 10000, 'symbol': ['ETH', 'USDT'], 'asset_type': 'spot', 'spot_short_method': 'inv', 'inv_neutral_bal': 1, 'rebal_on_close': False}
+INFO:root:Data collection finished. Dataframe dimensions: (911, 6)
+INFO:root:Data collection finished. Dataframe dimensions: (46, 6)
+INFO:root:1614209555: Starting live trader
+INFO:root:Running LiveTrader with params: {'series': [['ethusdt', '3m', 180], ['ethusdt', '60m', 3600]], 'num_periods': [None, None], 'exchange': 'binance', 'strategy': 'WillRBband', 'start': [2020, 1, 1, 0, 0], 'end': None, 'start_capital': 10000, 'symbol': ['ETH', 'USDT'], 'asset_type': 'spot', 'spot_short_method': 'inv', 'inv_neutral_bal': 1, 'rebal_on_close': False}
+INFO:root:Data collection finished. Dataframe dimensions: (911, 6)
+INFO:root:Data collection finished. Dataframe dimensions: (46, 6)
