@@ -646,15 +646,19 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         book = self.exchange.get_book(symbol=symbol)
         sig_digs = len(
-            self.exchange._symbol_info[symbol]['lot_prec'].split('.')[1])
+            self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')[1])
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
-        adjuster_small = 1*round_down(1/10**sig_digs)
-        adjuster_big = 0.85
         if self.cfg['asset_type'] == 'spot':
             fee = self.exchange.trade_fees['spot'][symbol]['taker']
             fee_asset = self.exchange.trade_fee_spot_asset
+        elif self.cfg['asset_type'] == 'futures':
+            fee = self.exchange.trade_fees['futures'][symbol]['taker']
+            if self.cfg['futures_margin_type'] == 'token':
+                fee_asset = self.cfg['symbol'][0]
+            elif self.cfg['futures_margin_type'].upper() == 'USDT':
+                fee_asset = 'USDT'
         else:
-            raise NotImplementedError
+            raise ValueError
 
         if params[4].upper() == 'SELL' and params[2] == 'Open':
             # Short open
@@ -674,10 +678,16 @@ class LiveWillRBband(WillRBband):
                         size = bals[self.cfg['symbol'][0]]
                 elif self.cfg['spot_short_method'] == 'margin':
                     raise NotImplementedError
-                # Adjust size to account for lot precision
-                size = f'%.{sig_digs}f' % round_down(size)
             elif self.cfg['asset_type'] == 'futures':
-                raise NotImplementedError
+                if self.cfg['futures_margin_type'] == 'USDT':
+                    index_price = self.exchange.futures_get_index_price(symbol=symbol)
+                    size = bals['USDT'](1 - 2*fee)/float(index_price)
+                elif self.cfg['futures_margin_type'] == 'token':
+                    raise NotImplementedError
+                else:
+                    raise ValueError
+            # Adjust size to account for lot precision
+            size = f'%.{sig_digs}f' % round_down(size)
         elif params[4].upper() == 'SELL' and params[2] == 'Close':
             # Long close
             if self.cfg['rebal_on_close']:
@@ -692,6 +702,7 @@ class LiveWillRBband(WillRBband):
                 size = float(self.last_order[2])*(1 + fee)
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
+                # Futures in here
                 size = self.last_order[2]
         elif params[4].upper() == 'BUY' and params[2] == 'Open':
             # Long open
@@ -711,10 +722,16 @@ class LiveWillRBband(WillRBband):
                         size = bals[self.cfg['symbol'][1]]/float(book['asks'][0][0])
                 elif self.cfg['spot_short_method'] == 'margin':
                     raise NotImplementedError
-                # Adjust size to account for lot precision
-                size = f'%.{sig_digs}f' % round_down(size)
             elif self.cfg['asset_type'] == 'futures':
-                raise NotImplementedError
+                if self.cfg['futures_margin_type'] == 'USDT':
+                    index_price = self.exchange.futures_get_index_price(symbol=symbol)
+                    size = bals['USDT'](1 - 2*fee)/float(index_price)
+                elif self.cfg['futures_margin_type'] == 'token':
+                    raise NotImplementedError
+                else:
+                    raise ValueError
+            # Adjust size to account for lot precision
+            size = f'%.{sig_digs}f' % round_down(size)
         elif params[4].upper() == 'BUY' and params[2] == 'Close':
             # Short close
             if self.cfg['spot_short_method'] == 'margin':
@@ -732,6 +749,7 @@ class LiveWillRBband(WillRBband):
                 size = float(self.last_order[2])/(1 - fee)
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
+                # Futures in here
                 size = self.last_order[2]
         else:
             self.logger.critical(self.last_order, params)
@@ -760,14 +778,12 @@ class LiveWillRBband(WillRBband):
         if self.cfg['asset_type'] == 'spot':
             order_id = self.exchange.place_order(symbol, params[4], size)
         elif self.cfg['asset_type'] == 'futures':
-            pass # Placeholder
-            #order_id = self.exchange.futures_place_order(symbol, params[4], size)
+            order_id = self.exchange.futures_place_order(symbol, params[4], size)
         else:
             raise ApplicationStateError
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         self.last_order = (order_id, bals, size, position_action)
         accting_args = self.last_order + (params[3], params[5])
-        #self._live_accounting(*self.last_order)
         self._live_accounting(*accting_args)
 
     def run(self):
