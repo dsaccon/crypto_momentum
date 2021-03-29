@@ -77,7 +77,7 @@ class BinanceAPI(ExchangeAPI):
 
         self.trade_fees = self._get_trade_fees()
         self.trade_fee_spot_asset = {'BUY': 'base', 'SELL': 'quote'}
-        self._symbol_info = self._parse_symbol_info()
+        self._symbol_info = self._get_symbol_info()
 
     # Internal helper funcs
 
@@ -91,28 +91,60 @@ class BinanceAPI(ExchangeAPI):
         else:
             return f'{int(secs)}s'
 
-    def _parse_symbol_info(self):
-        symbols = self._get_exchange_info()['symbols']
+    @staticmethod
+    def _symbol_parser(s):
+        """
+        Extract relevant info from object returned from _get_exchange_info()
+        """
         info = {}
-        for s in symbols:
-            key = s['symbol']
-            info[key] = {}
-            i_lot = [
-                i for i,f in enumerate(s['filters'])
-                if f['filterType'] == 'LOT_SIZE'
-            ]
-            i_lot = i_lot[0] if not i_lot == [] else None
-            i_pr = [
-                i for i,f in enumerate(s['filters'])
-                if f['filterType'] == 'PRICE_FILTER'
-            ]
-            i_pr = i_pr[0] if not i_pr == [] else None
-            if not i_lot is None:
-                info[key]['lot_min'] = s['filters'][i_lot]['minQty'].rstrip('0')
-                info[key]['lot_prec'] = s['filters'][i_lot]['stepSize'].rstrip('0')
-            if not i_pr is None:
-                info[key]['price_min'] = s['filters'][i_pr]['minPrice'].rstrip('0')
-                info[key]['price_prec'] = s['filters'][i_pr]['tickSize'].rstrip('0')
+        i_lot = [
+            i for i,f in enumerate(s['filters'])
+            if f['filterType'] == 'LOT_SIZE'
+        ]
+        i_lot = i_lot[0] if not i_lot == [] else None
+        i_pr = [
+            i for i,f in enumerate(s['filters'])
+            if f['filterType'] == 'PRICE_FILTER'
+        ]
+        i_pr = i_pr[0] if not i_pr == [] else None
+        if not i_lot is None:
+            info['lot_min'] = s['filters'][i_lot]['minQty'].rstrip('0')
+            info['lot_prec'] = s['filters'][i_lot]['stepSize'].rstrip('0')
+        if not i_pr is None:
+            info['price_min'] = s['filters'][i_pr]['minPrice'].rstrip('0')
+            info['price_prec'] = s['filters'][i_pr]['tickSize'].rstrip('0')
+        return info
+
+    def _get_symbol_info(self):
+        info = {}
+        for atype in ('spot', 'futures'):
+            info[atype] = {}
+            symbols = self._get_exchange_info(asset_type=atype)['symbols']
+            for s in symbols:
+                info[atype][s['symbol']] = __class__._symbol_parser(s)
+            #            key = s['symbol']
+            #            _info[key] = {}
+            #            i_lot = [
+            #                i for i,f in enumerate(s['filters'])
+            #                if f['filterType'] == 'LOT_SIZE'
+            #            ]
+            #            i_lot = i_lot[0] if not i_lot == [] else None
+            #            i_pr = [
+            #                i for i,f in enumerate(s['filters'])
+            #                if f['filterType'] == 'PRICE_FILTER'
+            #            ]
+            #            i_pr = i_pr[0] if not i_pr == [] else None
+            #            if not i_lot is None:
+            #                _info[key]['lot_min'] = s['filters'][i_lot]['minQty'].rstrip('0')
+            #                _info[key]['lot_prec'] = s['filters'][i_lot]['stepSize'].rstrip('0')
+            #            if not i_pr is None:
+            #                _info[key]['price_min'] = s['filters'][i_pr]['minPrice'].rstrip('0')
+            #                _info[key]['price_prec'] = s['filters'][i_pr]['tickSize'].rstrip('0')
+#        info = {'spot': _info}
+#        symbols = self._get_exchange_info(asset_type='futures')['symbols']
+#        for s in symbols:
+#            key = s['symbol']
+#            _info[key] = {}
         return info
 
     def _get_trade_fees(self):
@@ -356,6 +388,27 @@ class BinanceAPI(ExchangeAPI):
             resp['asks'] = resp['asks']
         return resp
 
+    def futures_get_mark_price(self, symbol=None):
+        ep = '/fapi/v1/premiumIndex'
+        uri = f'{self.API_URL_FUTURES}{ep}'
+        params = None
+        if symbol:
+            params = {'symbol': symbol.upper()}
+        resp = json.loads(requests.get(uri, params=params).text)
+        if symbol:
+            return resp['markPrice']
+        return {s['symbol']: s['markPrice'] for s in resp}
+
+    def futures_get_index_price(self, symbol=None):
+        ep = '/fapi/v1/premiumIndex'
+        uri = f'{self.API_URL_FUTURES}{ep}'
+        params = None
+        if symbol:
+            params = {'symbol': symbol.upper()}
+        resp = json.loads(requests.get(uri, params=params).text)
+        if symbol:
+            return resp['indexPrice']
+        return {s['symbol']: s['indexPrice'] for s in resp}
 
     ### SPOT ###
 
@@ -629,8 +682,6 @@ class BinanceAPI(ExchangeAPI):
         resp = self._external_client.futures_create_order(**args)
         self.logger.info(resp)
         return resp['orderId']
-
-        raise NotImplementedError
 
     def futures_cancel_order(self, symbol='BTCUSDT', order_id=None):
         raise NotImplementedError
