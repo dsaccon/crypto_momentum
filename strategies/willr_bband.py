@@ -663,7 +663,9 @@ class LiveWillRBband(WillRBband):
         if params[4].upper() == 'SELL' and params[2] == 'Open':
             # Short open
             if self.cfg['asset_type'] == 'spot':
-                if self.cfg['spot_short_method'] == 'inv':
+                if self.cfg['max_trade_size'] > 0:
+                    size = self.cfg['max_trade_size']
+                elif self.cfg['spot_short_method'] == 'inv':
                     if self.neutral_inv:
                         if bals[self.cfg['symbol'][0]] >= self.neutral_inv:
                             size = self.neutral_inv
@@ -679,7 +681,9 @@ class LiveWillRBband(WillRBband):
                 elif self.cfg['spot_short_method'] == 'margin':
                     raise NotImplementedError
             elif self.cfg['asset_type'] == 'futures':
-                if self.cfg['futures_margin_type'] == 'USDT':
+                if self.cfg['max_trade_size'] > 0:
+                    size = self.cfg['max_trade_size'](1 - 2*fee)
+                elif self.cfg['futures_margin_type'] == 'USDT':
                     index_price = self.exchange.futures_get_index_price(symbol=symbol)
                     size = bals['USDT'](1 - 2*fee)/float(index_price)
                 elif self.cfg['futures_margin_type'] == 'token':
@@ -707,7 +711,9 @@ class LiveWillRBband(WillRBband):
         elif params[4].upper() == 'BUY' and params[2] == 'Open':
             # Long open
             if self.cfg['asset_type'] == 'spot':
-                if self.cfg['spot_short_method'] == 'inv':
+                if self.cfg['max_trade_size'] > 0:
+                    size = self.cfg['max_trade_size']
+                elif self.cfg['spot_short_method'] == 'inv':
                     if self.neutral_inv:
                         if bals[self.cfg['symbol'][1]] >= self.neutral_inv*float(book['asks'][0][0]):
                             size = self.neutral_inv
@@ -723,7 +729,9 @@ class LiveWillRBband(WillRBband):
                 elif self.cfg['spot_short_method'] == 'margin':
                     raise NotImplementedError
             elif self.cfg['asset_type'] == 'futures':
-                if self.cfg['futures_margin_type'] == 'USDT':
+                if self.cfg['max_trade_size'] > 0:
+                    size = self.cfg['max_trade_size'](1 - 2*fee)
+                elif self.cfg['futures_margin_type'] == 'USDT':
                     index_price = self.exchange.futures_get_index_price(symbol=symbol)
                     size = bals['USDT'](1 - 2*fee)/float(index_price)
                 elif self.cfg['futures_margin_type'] == 'token':
