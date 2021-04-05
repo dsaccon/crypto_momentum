@@ -413,22 +413,35 @@ class BinanceAPI(ExchangeAPI):
     ### SPOT ###
 
     # ACCOUNT ENDPOINTS
-    def get_balances(self, asset='all'):
-        bals = self._external_client.get_account()
-        if asset == 'all':
-            return {
-                b['asset']: float(b['free'])
-                for b in bals['balances']
-            }
+    def get_balances(self, asset='all', asset_type='spot', filter_zero=False):
+        if asset_type == 'spot':
+            bals = self._external_client.get_account()['balances']
+            bals = {b['asset']: float(b['free']) for b in bals}
+        elif asset_type == 'futures':
+            bals = self.futures_get_balances()
+            bals = {k:float(v) for k,v in bals.items()}
         else:
-            return [
-                float(b['free'])
-                for b in bals['balances']
-                if b['asset'] == asset
-            ][0]
+            raise ValueError
+
+        if asset == 'all':
+            if filter_zero:
+                balances = {
+                    k:v for k, v in bals.items()
+                    if not v == 0
+                }
+            else:
+                balances = bals
+        else:
+            balances = [
+                v for k,v in bals.items() if k == asset
+            ]
+            if not len(balances) > 0:
+                raise ValueError
+            balances = balances[0]
+        return balances
 
     @meta(wait=1)
-    def order_status(self, symbol='BTCUSDT', order_id=None):
+    def order_status(self, symbol='BTCUSDT', order_id=None, asset_type='spot'):
         """
         Spot statuses:
             'NEW': The order has been accepted by the engine.
@@ -442,14 +455,19 @@ class BinanceAPI(ExchangeAPI):
                 .. or by the exchange
                 e.g. orders canceled during liquidation, orders canceled during maintenance
         """
-        if order_id is None:
-            resp = self._external_client.get_all_orders(symbol=symbol)
+        if asset_type == 'futures':
+            resp = self.futures_order_status(symbol=symbol, order_id=order_id)
+        elif asset_type == 'spot':
+            if order_id is None:
+                resp = self._external_client.get_all_orders(symbol=symbol)
+            else:
+                resp = self._external_client.get_order(symbol=symbol, orderId=order_id)
         else:
-            resp = self._external_client.get_order(symbol=symbol, orderId=order_id)
+            raise ValueError
 
         self.logger.debug(resp)
         if isinstance(resp, dict):
-            trades = self.get_trades(symbol=symbol, order_id=order_id)
+            trades = self.get_trades(symbol=symbol, order_id=order_id, asset_type=asset_type)
             qty = sum([float(t['quantity']) for t in trades])
             avg_pr = sum([float(t['price'])*float(t['quantity']) for t in trades])/qty
             fee = sum([float(t['fee']) for t in trades])
@@ -485,7 +503,7 @@ class BinanceAPI(ExchangeAPI):
             raise ValueError
 
     @meta(wait=1)
-    def get_trades(self, symbol='BTCUSDT', order_id=None):
+    def get_trades(self, symbol='BTCUSDT', order_id=None, asset_type='spot'):
         resp = self._external_client.get_my_trades(symbol=symbol)
         parser = lambda x: {
             'order_id': x['orderId'],
@@ -499,19 +517,31 @@ class BinanceAPI(ExchangeAPI):
             'fee': x['commission'],
             'fee_asset': x['commissionAsset'],
         }
-        if order_id is None:
-            trades = [parser(tr) for tr in resp]
+        if asset_type == 'futures':
+            trades = self.futures_get_trades(symbol=symbol, order_id=order_id)
+        elif asset_type == 'spot':
+            if order_id is None:
+                trades = [parser(tr) for tr in resp]
+            else:
+                trades = [parser(tr) for tr in resp if tr['orderId'] == order_id]
         else:
-            trades = [parser(tr) for tr in resp if tr['orderId'] == order_id]
+            return ValueError
         return trades
 
-    def place_order(self, symbol, side, quantity, type_='MARKET', price=None):
+    def place_order(self, symbol, side, quantity, order_type='MARKET', price=None, asset_type='spot'):
+        if asset_type == 'futures':
+            args = (symbol, side, quantity)
+            kwargs = {'order_type': order_type, 'price': price}
+            return self.futures_place_order(*args, **kwargs)
+        if not asset_type == 'spot':
+            return ValueError
+
         if side == 'BUY':
-            if type_ == 'MARKET':
+            if order_type == 'MARKET':
                 resp = self._external_client.order_market_buy(
                     symbol=symbol,
                     quantity=quantity)
-            elif type_ == 'LIMIT':
+            elif order_type == 'LIMIT':
                 resp = self._external_client.order_limit_buy(
                     symbol=symbol,
                     quantity=quantity,
@@ -519,11 +549,11 @@ class BinanceAPI(ExchangeAPI):
             else:
                 raise NotImplementedError
         elif side == 'SELL':
-            if type_ == 'MARKET':
+            if order_type == 'MARKET':
                 resp = self._external_client.order_market_sell(
                     symbol=symbol,
                     quantity=quantity)
-            elif type_ == 'LIMIT':
+            elif order_type == 'LIMIT':
                 resp = self._external_client.order_limit_sell(
                     symbol=symbol,
                     quantity=quantity,
@@ -549,10 +579,10 @@ class BinanceAPI(ExchangeAPI):
             return self._external_client.cancel_order(
                 symbol=symbol, orderId=order_id)
 
-    def test_order(self, symbol='BTCUSDT', side='BUY', type_='MARKET', quantity=None, price=None):
-        if type_ == 'MARKET':
+    def test_order(self, symbol='BTCUSDT', side='BUY', order_type='MARKET', quantity=None, price=None):
+        if order_type == 'MARKET':
             return self._external_client.create_test_order(
-                symbol=symbol, side=side, type=type_, quantity=quantity)
+                symbol=symbol, side=side, type=order_type, quantity=quantity)
 
 
     ### MARGIN ACCOUNT ###
@@ -620,11 +650,11 @@ class BinanceAPI(ExchangeAPI):
             asset=asset, amount=quantity, isIsolated=not cross_margin, symbol=symbol)
         return resp.get('tranId')
 
-    def margin_place_order(self, symbol, side, quantity, type_='MARKET', price=None):
+    def margin_place_order(self, symbol, side, quantity, order_type='MARKET', price=None):
         resp = self._external_client.create_margin_order(
             symbol=symbol,
             side=side,
-            type=type_,
+            type=order_type,
             quantity=quantity,
             price=price)
 
@@ -654,32 +684,82 @@ class BinanceAPI(ExchangeAPI):
         resp = self._external_client.futures_account_balance()
         return {s['asset']:s['balance'] for s in resp}
 
+    def _futures_get_balances(self):
+        """
+        Different info than previous
+        """
+        resp = self._external_client.futures_account()
+        return resp
+
     @meta(wait=1)
     def futures_order_status(self, symbol='BTCUSDT', order_id=None):
         if order_id is None:
             resp = self._external_client.futures_get_all_orders(symbol=symbol)
         else:
             resp = self._external_client.futures_get_order(symbol=symbol, orderId=order_id)
+        return resp
 
-    def futures_get_positions(self, symbol=None):
+    def futures_close_position(self, symbol=None):
+        if not symbol:
+            return ValueError
+        position = self.futures_get_positions(symbol=symbol)
+        side = 'BUY' if float(position['positionAmt']) < 0 else 'SELL'
+        quantity = position['positionAmt']
+        quantity = quantity[1:] if quantity[0] == '-' else quantity
+        order_id = self.futures_place_order(symbol, side, quantity)
+        return order_id
+
+    def futures_get_positions(self, symbol=None, filter_zero=False):
         resp = self._external_client.futures_account()
         if symbol:
             return [s for s in resp['positions'] if s['symbol'] == symbol][0]
         else:
+            if filter_zero:
+                return [
+                    r for r in resp['positions']
+                    if not float(r['positionAmt']) == 0
+                ]
             return resp['positions']
+
+    def _futures_get_positions(self):
+        """
+        WIP. Gives slightly different info than from futures_get_positions()
+        """
+        resp = self._external_client.futures_position_information()
+        return resp
 
     @meta(wait=1)
     def futures_get_trades(self, symbol='BTCUSDT', order_id=None):
-        raise NotImplementedError
+        kwargs = {
+            'symbol': symbol,
+        }
+        resp = self._external_client.futures_account_trades(**kwargs)
+        parser = lambda x: {
+            'order_id': x['orderId'],
+            'trade_id': x['id'],
+            'symbol': x['symbol'],
+            'timestamp': x['time'],
+            'side': x['side'],
+            'type': 'LIMIT' if x['maker'] == 'true' else 'MARKET',
+            'price': x['price'],
+            'quantity': x['qty'],
+            'fee': x['commission'],
+            'fee_asset': x['commissionAsset'],
+        }
+        if order_id is None:
+            trades = [parser(tr) for tr in resp]
+        else:
+            trades = [parser(tr) for tr in resp if tr['orderId'] == order_id]
+        return trades
 
-    def futures_place_order(self, symbol, side, quantity, type_='MARKET', price=None):
-        args = {
+    def futures_place_order(self, symbol, side, quantity, order_type='MARKET', price=None):
+        kwargs = {
             'symbol': symbol,
             'quantity': quantity,
             'side': side,
-            'type': type_
+            'type': order_type
         }
-        resp = self._external_client.futures_create_order(**args)
+        resp = self._external_client.futures_create_order(**kwargs)
         self.logger.info(resp)
         return resp['orderId']
 
