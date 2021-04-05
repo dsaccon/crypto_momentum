@@ -99,49 +99,6 @@ class WillRBband(BacktestingBaseClass):
 
         if self.cfg['floating_willr']:
             self._create_floating_willr()
-#        ### Build floating willr/willr_ema indicators
-#        num_intervals = int(self.cfg['series'][1][-1]/self.cfg['series'][0][-1])
-#        last_idx = self.data[0].index[-1]
-#        offset_end = int(last_idx % modulo / self.cfg['series'][0][-1])
-#        willr = [None]*num_intervals
-#        willr_ema = [None]*num_intervals
-#        period_str = self.cfg['series'][1][1] # Period str in mins (e.g. '60m')
-#        tag = f'{period_str}_float'
-#        # Get resampled longer-interval series
-#        for _i, offset_beg in enumerate(range(num_intervals)): # offset from beginning of self.data[0]
-#            if offset_beg > offset_end:
-#                offset = num_intervals - (offset_beg - offset_end)
-#            else:
-#                offset = offset_end - offset_beg
-#            floating_series = self._resample_floating_candles(offset=offset)
-##            floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
-#            willr[_i] = btalib.willr(
-#                floating_series[f'high_{tag}'],
-#                floating_series[f'low_{tag}'],
-#                floating_series[f'close_{tag}'],
-#                period = 14).df
-#            willr[_i].rename(columns = {'r': 'willr'}, inplace = True)
-#            willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
-#            willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
-#
-##        for _i in range(num_intervals): ###
-##            willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
-##            willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
-#
-#        # Combine & interleave each longer-interval willr series to a shorter-interval df
-#        _willr = pd.concat([w for w in willr], sort=True)
-#        _willr = _willr.sort_index()
-#        _willr['timestamp'] = _willr.index.astype(np.int64) // 10 ** 9
-#        _willr.set_index('timestamp', inplace=True)
-#        self.data[0][f'willr_{period_str}_float'] = _willr.willr
-#
-#        _willr_ema = pd.concat([w for w in willr_ema], sort=True)
-#        _willr_ema = _willr_ema.sort_index()
-#        _willr_ema['timestamp'] = _willr_ema.index.astype(np.int64) // 10 ** 9
-#        _willr_ema.set_index('timestamp', inplace=True)
-#        self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
-#        self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
-##        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
 
         i = 0
         # For Long entry
@@ -302,7 +259,7 @@ class WillRBband(BacktestingBaseClass):
             self._trades[-1] += f'_{trade_settings[1].lower()}_{trade_settings[2].lower()}'
         elif self.execution_mode == 'live':
             symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-            ob_snapshot = self.exchange.get_book(symbol=symbol, depth=10)
+            ob_snapshot = self.exchange.get_book(symbol=symbol, depth=10, asset_type=self.cfg['asset_type'])
             self._place_live_order(trade_settings + (side, ob_snapshot))
         else:
             raise ValueError
@@ -504,11 +461,11 @@ class LiveWillRBband(WillRBband):
         self.last_order = tuple() # (order_id, bals, size, position_action)
         self.neutral_inv = self.cfg['inv_neutral_bal']
         if self.neutral_inv == 'auto':
-            bals = self.exchange.get_balances()
+            bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
 
     def _live_tradelog_setup(self):
-        bals = self.exchange.get_balances()
+        bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         cols = (
             'time_trade',
             'time_candle',
@@ -529,15 +486,23 @@ class LiveWillRBband(WillRBband):
             'bal_quote_before',
             'bal_quote_after',
             'netliq_before',
-            'netliq_after')
-        netliq = self._get_netliq()
+            'netliq_after',
+            'margin_bal_before',
+            'margin_bal_after')
+        if self.cfg['asset_type'] == 'spot':
+            netliq = self._get_netliq()
+            margin_bal = ''
+        elif self.cfg['asset_type'] == 'futures':
+            netliq = ''
+            margin_bal = self._get_netliq()
         now = int(dt.datetime.now().timestamp())
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         line = (
             (now, '', symbol)
                 + tuple(('' for _ in cols[3:-6])) + (
-                    bals[self.cfg['symbol'][0]], '',
-                    bals[self.cfg['symbol'][1]], '', netliq, netliq))
+                    bals.get(self.cfg['symbol'][0]), '',
+                    bals.get(self.cfg['symbol'][1]), '',
+                    netliq, netliq, margin_bal, margin_bal))
         write_mode = 'a'
         if not os.path.isfile('logs/live_trades.csv'):
             write_mode = 'w'
@@ -595,9 +560,9 @@ class LiveWillRBband(WillRBband):
 
         """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id)
+        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
         netliq_before = self._get_netliq(bals=bals_before)
-        bals_after = self.exchange.get_balances()
+        bals_after = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         netliq_after = self._get_netliq(bals=bals_after)
         book_side = 'bids' if trade_status['side'] == 'BUY' else 'asks'
         ts_trade = str(trade_status['timestamp'])
@@ -617,12 +582,14 @@ class LiveWillRBband(WillRBband):
             trade_status['status'],
             trade_status['fee'],
             trade_status['fee_asset'],
-            bals_before[self.cfg['symbol'][0]],
-            bals_after[self.cfg['symbol'][0]],
-            bals_before[self.cfg['symbol'][1]],
-            bals_after[self.cfg['symbol'][1]],
+            bals_before.get(self.cfg['symbol'][0]),
+            bals_after.get(self.cfg['symbol'][0]),
+            bals_before.get(self.cfg['symbol'][1]),
+            bals_after.get(self.cfg['symbol'][1]),
             netliq_before,
-            netliq_after)
+            netliq_after,
+            '',
+            '')
 
         trades_logfile = 'logs/live_trades.csv'
         with open(trades_logfile, 'a', newline='') as f:
@@ -642,9 +609,9 @@ class LiveWillRBband(WillRBband):
         params: (time, <Long|Short>, <Open|Close>, close_price, side, ob_snapshot)
 
         """
-        bals = self.exchange.get_balances()
+        bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        book = self.exchange.get_book(symbol=symbol)
+        book = self.exchange.get_book(symbol=symbol, asset_type=self.cfg['asset_type'])
         sig_digs = len(
             self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')[1])
         round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
@@ -766,12 +733,15 @@ class LiveWillRBband(WillRBband):
 
     def _get_netliq(self, bals=None):
         if not bals:
-            bals = self.exchange.get_balances()
+            bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        book = self.exchange.get_book(symbol=symbol)
-        tkn_netliq = bals[self.cfg['symbol'][0]]*float(book['bids'][0][0])
-        usdt_netliq = bals[self.cfg['symbol'][1]]
-        return tkn_netliq + usdt_netliq
+        book = self.exchange.get_book(symbol=symbol, asset_type=self.cfg['asset_type'])
+        if self.cfg['asset_type'] == 'spot':
+            tkn_netliq = bals[self.cfg['symbol'][0]]*float(book['bids'][0][0])
+            usdt_netliq = bals[self.cfg['symbol'][1]]
+            return tkn_netliq + usdt_netliq
+        elif self.cfg['asset_type'] == 'futures':
+            return self.exchange._futures_get_balances()['totalMarginBalance']
 
     def _place_live_order(self, params):
         """
