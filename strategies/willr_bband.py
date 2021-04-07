@@ -595,9 +595,19 @@ class LiveWillRBband(WillRBband):
         with open(trades_logfile, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
+        if position_action.endswith('close'):
+            open_status = self.exchange.order_status(
+                symbol=symbol, order_id=self.last_order[0], asset_type=self.cfg['asset_type'])
+            fees = 2*self.exchange.trade_fees[self.cfg['asset_type']][symbol]['taker']
+            op = operator.add if position_action.startswith('long') else operator.sub
+            hurdle = round(op(1, fees)*open_status['price'], 2)
+            hurdle_str = f' h: {hurdle},'
+        else:
+            hurdle_str = ''
         write_s3(trades_logfile, bkt=self.s3_bkt_name)
         SNS_call(msg=(
             f"Trade: {ts_trade[:10]}, p: {round(trade_status['price'], 2)},"
+            f"{hurdle_str}"
             f" s: {round(float(trade_status['quantity']), 5)}, {position_action}")) ### tmp
 
     def _live_trade_size(self, params):
@@ -649,10 +659,10 @@ class LiveWillRBband(WillRBband):
                     raise NotImplementedError
             elif self.cfg['asset_type'] == 'futures':
                 if self.cfg['max_trade_size'] > 0:
-                    size = self.cfg['max_trade_size'](1 - 2*fee)
+                    size = self.cfg['max_trade_size']*(1 - 2*fee)
                 elif self.cfg['futures_margin_type'] == 'USDT':
                     index_price = self.exchange.futures_get_index_price(symbol=symbol)
-                    size = bals['USDT'](1 - 2*fee)/float(index_price)
+                    size = bals['USDT']*(1 - 2*fee)/float(index_price)
                 elif self.cfg['futures_margin_type'] == 'token':
                     raise NotImplementedError
                 else:
@@ -661,7 +671,9 @@ class LiveWillRBband(WillRBband):
             size = f'%.{sig_digs}f' % round_down(size)
         elif params[4].upper() == 'SELL' and params[2] == 'Close':
             # Long close
-            if self.cfg['rebal_on_close']:
+            if self.cfg['asset_type'] == 'futures':
+                size = self.last_order[2]
+            elif self.cfg['rebal_on_close']:
                 size = bals[self.cfg['symbol'][0]]/2
                 size = f'%.{sig_digs}f' % round_down(size)
             elif fee_asset['BUY'] == 'base':
@@ -673,7 +685,6 @@ class LiveWillRBband(WillRBband):
                 size = float(self.last_order[2])*(1 + fee)
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
-                # Futures in here
                 size = self.last_order[2]
         elif params[4].upper() == 'BUY' and params[2] == 'Open':
             # Long open
@@ -697,10 +708,10 @@ class LiveWillRBband(WillRBband):
                     raise NotImplementedError
             elif self.cfg['asset_type'] == 'futures':
                 if self.cfg['max_trade_size'] > 0:
-                    size = self.cfg['max_trade_size'](1 - 2*fee)
+                    size = self.cfg['max_trade_size']*(1 - 2*fee)
                 elif self.cfg['futures_margin_type'] == 'USDT':
                     index_price = self.exchange.futures_get_index_price(symbol=symbol)
-                    size = bals['USDT'](1 - 2*fee)/float(index_price)
+                    size = bals['USDT']*(1 - 2*fee)/float(index_price)
                 elif self.cfg['futures_margin_type'] == 'token':
                     raise NotImplementedError
                 else:
@@ -711,7 +722,9 @@ class LiveWillRBband(WillRBband):
             # Short close
             if self.cfg['spot_short_method'] == 'margin':
                 raise NotImplementedError
-            if self.cfg['rebal_on_close']:
+            if self.cfg['asset_type'] == 'futures':
+                size = self.last_order[2]
+            elif self.cfg['rebal_on_close']:
                 size = self.last_order[2] # No-op. Only rebal on Long close
             elif fee_asset['SELL'] == 'base':
                 # Pos open paid fees in base token, so pos is slightly smaller
@@ -724,7 +737,6 @@ class LiveWillRBband(WillRBband):
                 size = float(self.last_order[2])/(1 - fee)
                 size = f'%.{sig_digs}f' % round_down(size)
             else:
-                # Futures in here
                 size = self.last_order[2]
         else:
             self.logger.critical(self.last_order, params)
@@ -756,13 +768,18 @@ class LiveWillRBband(WillRBband):
         if self.cfg['asset_type'] == 'spot':
             order_id = self.exchange.place_order(symbol, params[4], size)
         elif self.cfg['asset_type'] == 'futures':
-            order_id = self.exchange.futures_place_order(symbol, params[4], size)
+            if params[2] == 'Open':
+                order_id = self.exchange.futures_place_order(symbol, params[4], size)
+            elif params[2] == 'Close':
+                order_id = self.exchange.futures_close_position(symbol=symbol)
+            else:
+                raise ValueError
         else:
             raise ApplicationStateError
         position_action = f'{params[1].lower()}_{params[2].lower()}'
-        self.last_order = (order_id, bals, size, position_action)
-        accting_args = self.last_order + (params[3], params[5])
+        accting_args = (order_id, bals, size, position_action, params[3], params[5])
         self._live_accounting(*accting_args)
+        self.last_order = (order_id, bals, size, position_action)
 
     def run(self):
         if self.cfg['floating_willr']:
