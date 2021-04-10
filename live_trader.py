@@ -29,11 +29,11 @@ class LiveTrader(Base):
         for i, _cfg in enumerate(self.data_cfg):
             if _cfg[2]*self.strategy.MAX_PERIODS[i] > interval:
                 interval = _cfg[2]*self.strategy.MAX_PERIODS[i]
-        _end = dt.datetime.now()
+        _end = dt.datetime.utcnow()
         self.end = (_end.year, _end.month, _end.day, _end.hour, _end.minute)
         self.end_ts = _end.timestamp()
         interval += 5*max([c[2] for c in self.data_cfg]) # Add some padding
-        self.start_ts = int(dt.datetime.now().timestamp()) - interval
+        self.start_ts = int(dt.datetime.utcnow().timestamp()) - interval
 
         longest_period = max([_[2] for _ in self.data_cfg])
         shortest_period = min([_[2] for _ in self.data_cfg])
@@ -129,6 +129,6 @@ if __name__ == '__main__':
     if not os.path.isdir('logs/'):
         os.mkdir('logs')
     logging.basicConfig(filename=logfile, level=logging.INFO)
-    logging.info(f'{int(dt.datetime.now().timestamp())}: Starting live trader')
+    logging.info(f'{int(dt.datetime.utcnow().timestamp())}: Starting live trader')
     args = parse_args()
     LiveTrader(args).run()
