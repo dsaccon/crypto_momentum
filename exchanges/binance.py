@@ -235,7 +235,7 @@ class BinanceAPI(ExchangeAPI):
             symbol: str,
             period: int,
             startTime: dt,
-            endTime: dt,
+            endTime: dt = dt.datetime.utcnow(),
             asset_type: str = 'spot',
             completed_only: bool = True) -> pd:
 
@@ -292,7 +292,7 @@ class BinanceAPI(ExchangeAPI):
         df.index = [dt.datetime.utcfromtimestamp(x/1000.0) for x in df.datetime]
         df.datetime = df.datetime.apply(lambda r: int(r/1000))
         df['completed'] = df.end_time.apply(
-            lambda t: True if dt.datetime.now().timestamp() > t/1000 else False)
+            lambda t: True if dt.datetime.utcnow().timestamp() > t/1000 else False)
         if completed_only and df['completed'].iloc[-1] == False:
             df = df.iloc[:-1]
         return df
@@ -302,7 +302,7 @@ class BinanceAPI(ExchangeAPI):
             self,
             symbol: str,
             startTime: dt,
-            endTime: dt = dt.datetime.now(),
+            endTime: dt = dt.datetime.utcnow(),
             asset_type: str = 'spot',
             completed_only: bool = True) -> pd:
 
