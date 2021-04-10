@@ -40,7 +40,7 @@ class BacktestingBaseClass:
         }
         self.balances = []
         self.logger = logging.getLogger(__name__)
-        self.start_time = int(dt.datetime.now().timestamp())
+        self.start_time = int(dt.datetime.utcnow().timestamp())
         self.s3_bkt_name = os.environ.get('S3_BUCKET_NAME')
 
     def preprocess_data(self):
