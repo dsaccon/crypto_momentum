@@ -97,7 +97,7 @@ class OkexAPI(ExchangeAPI):
             symbol: str,
             period: int,
             startTime: dt,
-            endTime: dt = dt.datetime.utcnow(),
+            endTime: dt = None,
             asset_type: str = 'spot',
             completed_only: bool = True) -> pd:
 
@@ -107,13 +107,16 @@ class OkexAPI(ExchangeAPI):
             symbol (str): symbol name of instrument. E.g. 'btcusdt'
             period (int): period length (secs)
             startTime (dt): series start time in datetime format
-            endTime (dt): series end time in datetime format
+            endTime (dt or NoneType): series end time in datetime format
             completed_only: do not show candles that have not been completed
 
             Returns
             ---------
             df (pd): pandas dataframe with collected data from API
         """
+        if endTime is None:
+            endTime = dt.datetime.utcnow()
+
         if not period in OkexAPI.VALID_CANDLE_PERIODS:
             raise ValueError
         if not symbol.endswith('USDT'):
@@ -141,10 +144,7 @@ class OkexAPI(ExchangeAPI):
         }
 
         time_before = dt.datetime.utcnow()
-        resp = json.loads(requests.get(uri, params=req_params).text)
-        print(resp) ### tmp
-        #df = pd.DataFrame(json.loads(requests.get(uri, params=req_params).text))
-        df = pd.DataFrame(resp)
+        df = pd.DataFrame(json.loads(requests.get(uri, params=req_params).text))
 
         if (len(df.index) == 0):
             return None
@@ -162,8 +162,13 @@ class OkexAPI(ExchangeAPI):
             dt.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ")
             for t in df.datetime
         ]
-
-        df['completed'] = df.datetime.apply(lambda t: True if time_before > dt.datetime.strptime(t, "%Y-%m-%dT%H:%M:%S.%fZ") + dt.timedelta(seconds=period) else False)
+        def time_check(t):
+            dt_fmt = "%Y-%m-%dT%H:%M:%S.%fZ"
+            if time_before > dt.datetime.strptime(t, dt_fmt) + dt.timedelta(seconds=period):
+                return True
+            return False
+        df['completed'] = df.datetime.apply(time_check)
+        df = df.iloc[::-1]
         if completed_only and df['completed'].iloc[-1] == False:
             df = df.iloc[:-1]
         return df
