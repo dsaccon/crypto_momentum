@@ -458,7 +458,7 @@ class LiveWillRBband(WillRBband):
         super().__init__(*args, **kwargs)
         self.execution_mode = 'live'
         self._live_tradelog_setup()
-        self.last_order = tuple() # (order_id, bals, size, position_action)
+        self.last_order = tuple() # (order_status: dict, bals: dict, size: float, position_action: str)
         self.neutral_inv = self.cfg['inv_neutral_bal']
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
@@ -495,7 +495,7 @@ class LiveWillRBband(WillRBband):
         elif self.cfg['asset_type'] == 'futures':
             netliq = ''
             margin_bal = self._get_netliq()
-        now = int(dt.datetime.now().timestamp())
+        now = int(dt.datetime.utcnow().timestamp())
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         line = (
             (now, '', symbol)
@@ -519,7 +519,7 @@ class LiveWillRBband(WillRBband):
         """
         API call + checks to fetch new candles as they become available
         """
-        now = dt.datetime.now()
+        now = dt.datetime.utcnow()
         latest_data_idx = int(self.data[i].index[-1])
         period = self.cfg['series'][i][2]
         if now.timestamp() - latest_data_idx > 2*period:
@@ -534,7 +534,7 @@ class LiveWillRBband(WillRBband):
                     asset_type=self.cfg['asset_type'])
                 idx = int(new_candle.iloc[-1]['datetime'])
                 if not idx == latest_data_idx + period:
-                    self.logger.info(f'now: {dt.datetime.now().timestamp()}')
+                    self.logger.info(f'now: {dt.datetime.utcnow().timestamp()}')
                     self.logger.info(f'last completed candle:')
                     self.logger.info(f' {new_candle.iloc[-1]["datetime"]}')
                     self.logger.info(f'{latest_data_idx}, {idx}, {period}')
@@ -542,7 +542,7 @@ class LiveWillRBband(WillRBband):
                     time.sleep(1)
                 else:
                     break
-                now = dt.datetime.now()
+                now = dt.datetime.utcnow()
 
             row = {c:None for c in self.data[i].columns}
             self.data[i].loc[idx] = row
@@ -596,11 +596,9 @@ class LiveWillRBband(WillRBband):
             writer = csv.writer(f)
             writer.writerow(row)
         if position_action.endswith('close'):
-            open_status = self.exchange.order_status(
-                symbol=symbol, order_id=self.last_order[0], asset_type=self.cfg['asset_type'])
             fees = 2*self.exchange.trade_fees[self.cfg['asset_type']][symbol]['taker']
             op = operator.add if position_action.startswith('long') else operator.sub
-            hurdle = round(op(1, fees)*open_status['price'], 2)
+            hurdle = round(op(1, fees)*self.last_order[0]['price'], 2)
             hurdle_str = f' h: {hurdle},'
         else:
             hurdle_str = ''
@@ -779,7 +777,8 @@ class LiveWillRBband(WillRBband):
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         accting_args = (order_id, bals, size, position_action, params[3], params[5])
         self._live_accounting(*accting_args)
-        self.last_order = (order_id, bals, size, position_action)
+        order_status = self.exchange.order_status(symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
+        self.last_order = (order_status, bals, size, position_action)
 
     def run(self):
         if self.cfg['floating_willr']:
@@ -798,7 +797,7 @@ class LiveWillRBband(WillRBband):
 
         next_candle_secs = lambda: int(
             self.cfg['series'][0][2] - (
-                dt.datetime.now().timestamp() % self.cfg['series'][0][2]))
+                dt.datetime.utcnow().timestamp() % self.cfg['series'][0][2]))
 
         while True:
             # Periodically update candles from API
@@ -817,7 +816,7 @@ class LiveWillRBband(WillRBband):
                 self.logger.info(f"Next candle in {next_candle_secs()}s")
             else:
                 time.sleep(1)
-                if int(str(int(dt.datetime.now().timestamp()))[-1]) % 9 == 0:
-                    now = dt.datetime.now().timestamp()
+                if int(str(int(dt.datetime.utcnow().timestamp()))[-1]) % 9 == 0:
+                    now = dt.datetime.utcnow().timestamp()
                     remaining = self.cfg['series'][0][2] - now % self.cfg['series'][0][2]
                     self.logger.debug(f"Next candle in {next_candle_secs()}s")
