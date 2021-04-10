@@ -368,6 +368,6 @@ if __name__ == '__main__':
     if not os.path.isdir('logs/'):
         os.mkdir('logs')
     logging.basicConfig(filename=logfile, level=logging.INFO)
-    logging.info(f'{int(dt.datetime.now().timestamp())}: Starting backtester')
+    logging.info(f'{int(dt.datetime.utcnow().timestamp())}: Starting backtester')
     args = parse_args()
     Backtest(args).run()
