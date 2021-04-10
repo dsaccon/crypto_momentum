@@ -235,7 +235,7 @@ class BinanceAPI(ExchangeAPI):
             symbol: str,
             period: int,
             startTime: dt,
-            endTime: dt = dt.datetime.utcnow(),
+            endTime: dt = None,
             asset_type: str = 'spot',
             completed_only: bool = True) -> pd:
 
@@ -245,13 +245,15 @@ class BinanceAPI(ExchangeAPI):
             symbol (str): symbol name of instrument. E.g. 'btcusdt'
             period (int): period length (secs)
             startTime (dt): series start time in datetime format
-            endTime (dt): series end time in datetime format
+            endTime (dt or NoneType): series end time in datetime format
             completed_only: do not show candles that have not been completed
 
             Returns
             ---------
             df (pd): pandas dataframe with collected data from API
         """
+        if endTime is None:
+            endTime = dt.datetime.utcnow()
 
         if asset_type == 'spot':
             base_uri = self.API_URL
@@ -302,7 +304,7 @@ class BinanceAPI(ExchangeAPI):
             self,
             symbol: str,
             startTime: dt,
-            endTime: dt = dt.datetime.utcnow(),
+            endTime: dt = None,
             asset_type: str = 'spot',
             completed_only: bool = True) -> pd:
 
@@ -316,13 +318,15 @@ class BinanceAPI(ExchangeAPI):
             symbol (str): symbol name of instrument. E.g. 'btcusdt'
             period (int): period length (secs)
             startTime (dt): series start time in datetime format
-            endTime (dt): series end time in datetime format
+            endTime (dt or NoneType): series end time in datetime format
             completed_only: do not show candles that have not been completed
 
             Returns
             ---------
             df (pd): pandas dataframe with collected data from API
         """
+        if endTime is None:
+            endTime = dt.datetime.utcnow()
 
         base_uri = self.API_URL
         endpoint = '/trades'
