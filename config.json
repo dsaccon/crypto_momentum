@@ -14,20 +14,33 @@
     "exchange": "binance",
     "strategy": "WillRBband",
     "start": [
-      2020,
-      9,
+      2021,
+      4,
       1,
       0,
       0
     ],
-    "end": null,
+    "end": [
+      2021,
+      4,
+      10,
+      0,
+      0
+    ],
     "start_capital": 10000,
-    "symbol": ["BTC", "USDT"],
-    "asset_type": "spot",
+    "symbol": ["LTC", "USDT"],
+    "asset_type": "futures",
     "spot_short_method": "inv",
     "inv_neutral_bal": false,
     "rebal_on_close": false,
-    "floating_willr": true
+    "floating_willr": true,
+    "willrema_long_entry":-100,
+    "willrema_short_entry":0,
+    "willrema_diff_threshold":0.4,
+    "willr_long_entry":-100,
+    "willr_short_entry":0,
+    "stoploss": 0.1,
+    "timestop":18000
   },
   "WillRBband_ETH_3m_60m": {
     "series": [

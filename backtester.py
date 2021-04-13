@@ -85,7 +85,7 @@ class Base:
         """
         with open(f'{self.path}/config.json', 'r') as f:
             cfg = json.load(f)
-
+            print (cfg)
         if self.__class__.__name__ == 'LiveTrader':
             self.strategy = getattr(strategies, f"Live{cfg[self.run_name]['strategy']}")
         else:
@@ -204,7 +204,8 @@ class Base:
         if not os.path.exists(f'{self.path}/data/'):
             os.mkdir('data/')
         self.df[i][self.df_expected_cols[1:]].to_csv(f'{self.path}/data/{filename}')
-
+        latest = 'latest_bt_df.csv'
+        self.df[i][self.df_expected_cols[1:]].to_csv(f'{self.path}/logs/{latest}')
 
 class Backtest(Base):
 

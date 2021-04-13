@@ -1,0 +1,186 @@
+{
+  "WillRBband_X_3m_60m": {
+    "series": [
+      [
+        "xrpusdt",
+        "3m"
+      ],
+      [
+        "xrpusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2021,
+      2,
+      11,
+      0,
+      0
+    ],
+    "end":[
+      2021,
+      2,
+      13,
+      0,
+      0
+    ],
+    "start_capital": 10000,
+    "symbol": ["XRP", "USDT"],
+    "asset_type": "spot",
+    "spot_short_method": "inv",
+    "rebal_on_close": true
+  },
+  "WillRBband_ETH_3m_60m": {
+    "series": [
+      [
+        "ethusdt",
+        "3m"
+      ],
+      [
+        "ethusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2020,
+      1,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["ETH", "USDT"],
+    "asset_type": "spot",
+    "spot_short_method": "inv",
+    "inv_neutral_bal": 1,
+    "rebal_on_close": false
+  },
+  "WillRBband_ETH_3m_60m": {
+    "series": [
+      [
+        "ethusdt",
+        "3m"
+      ],
+      [
+        "ethusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["ETH", "USDT"],
+    "asset_type": "spot",
+    "spot_short_method": "inv",
+    "inv_neutral_bal": 10,
+    "rebal_on_close": false
+  },
+  "WillRBbandCrossMod_BTC_3m_60m": {
+    "series": [
+      [
+        "btcusdt",
+        "3m"
+      ],
+      [
+        "btcusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBbandCrossMod",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["BTC", "USDT"],
+    "asset_type": "spot",
+    "spot_short_method": "inv"
+  },
+  "WillREma_BTC_60m": {
+    "series": [
+      [
+        "btcusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillREma",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["BTC", "USDT"],
+    "asset_type": "spot",
+    "spot_short_method": "inv"
+  },
+  "HA": {
+    "series": [
+      [
+        "FB",
+        "1m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "ib",
+    "strategy": "HA",
+    "start": [
+      2020,
+      9,
+      1,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": "FB"
+  },
+ "EmaLrc": {
+   "series": [
+     [
+       "FB",
+       "5m"
+     ]
+   ],
+   "num_periods": [30, 14],
+   "exchange": "ib",
+   "strategy": "EmaLrc",
+   "start": [
+     2020,
+     9,
+     1,
+     0,
+     0
+   ],
+   "end": null,
+   "start_capital": 10000,
+   "symbol": "FB"
+ }
+}
