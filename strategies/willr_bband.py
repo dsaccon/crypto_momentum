@@ -33,8 +33,8 @@ class WillRBband(BacktestingBaseClass):
             'short_close_cross': ('close', 'bband_20_low'),
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
-        #_execution_type = '_execute_trade_anytime_entry'
-        _execution_type = '_execute_trade_all_params'
+        _execution_type = '_execute_trade_anytime_entry'
+        #_execution_type = '_execute_trade_all_params'
         self._on_new_candle = getattr(self, _execution_type)
 
     def _backtesting_tradelog_setup(self):
@@ -46,6 +46,19 @@ class WillRBband(BacktestingBaseClass):
             'price',
             'balance')
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        bt_params = ' asset_type:' + self.cfg['asset_type'] + \
+                    ' strategy:'   + self.cfg['strategy'] + \
+                    ' floating_willr:' + str(self.cfg['floating_willr']) + \
+                    ' ENTRY PARAMS:' + \
+                    ' willr_diff_threshold:' + str(self.cfg['willrema_diff_threshold']) + \
+                    ' willrema_long_entry:' + str(self.cfg['willrema_long_entry']) + \
+                    ' willrEMA_short_entry:' + str(self.cfg['willrema_short_entry']) + \
+                    ' willr_long_entry:' + str(self.cfg['willr_long_entry']) + \
+                    ' willr_short_entry:' + str(self.cfg['willr_short_entry']) + \
+                    ' stoploss:' + str(self.cfg['stoploss']) + \
+                    ' timestop:' + str(self.cfg['timestop'])
+
+        symbol = symbol + bt_params
         line = (
             self.start_time,
             symbol,
