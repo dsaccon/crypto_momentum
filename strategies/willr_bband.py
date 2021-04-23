@@ -33,8 +33,9 @@ class WillRBband(BacktestingBaseClass):
             'short_close_cross': ('close', 'bband_20_low'),
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
-        _execution_type = '_execute_trade_anytime_entry'
-        #_execution_type = '_execute_trade_all_params'
+        #_execution_type = '_execute_trade_anytime_entry'
+        _execution_type = '_execute_trade_all_params'
+    
         self._on_new_candle = getattr(self, _execution_type)
 
     def _backtesting_tradelog_setup(self):
