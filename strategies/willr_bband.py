@@ -33,7 +33,8 @@ class WillRBband(BacktestingBaseClass):
             'short_close_cross': ('close', 'bband_20_low'),
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
-        _execution_type = '_execute_trade_anytime_entry'
+        #_execution_type = '_execute_trade_anytime_entry'
+        _execution_type = '_execute_trade_all_params'
         self._on_new_candle = getattr(self, _execution_type)
 
     def _backtesting_tradelog_setup(self):
@@ -380,6 +381,80 @@ class WillRBband(BacktestingBaseClass):
                 self.position = 0
                 self._trades[-1] += '_short_close' ### tmp
                 self.short_close = False
+                return True
+        return False
+
+    def _execute_trade_all_params(self, row):
+        """
+        Modified trade logic.
+        inclues willrema_long/short entry, willr_long/short_entry, willrema_diff_threshold
+        and stoploss and timestop 
+        """
+        tag = ''
+        if self.cfg['floating_willr']:
+            tag = f"_{self.cfg['series'][1][1]}_float"
+        
+
+        willr_threshold = self.cfg['willrema_diff_threshold']
+        willrEMA_long_entry = self.cfg['willrema_long_entry'] #-100 will ignore threshold
+        willrEMA_short_entry = self.cfg['willrema_short_entry'] #0 will ignore threshold
+        willr_long_entry = self.cfg['willr_long_entry'] #-100 will ignore threshold
+        willr_short_entry = self.cfg['willr_short_entry'] #0 will ignore threshold
+
+        timestop =  self.cfg['timestop']
+        stoploss =  self.cfg['stoploss']
+
+
+        if ((row[f'willr_ema{tag}']  > willrEMA_long_entry) and  #overbought willrema implying bullish trend
+           (row[f'willr{tag}']  > willr_long_entry) and  #overbought willr implying bullish trend
+           ((row[f'willr_ema{tag}'] - willr_threshold) > row[f'willr_ema_prev{tag}']) and  #more overbought than before
+           not self.position > 0):
+            self.position_open_state = 'long_open'
+        elif ((row[f'willr_ema{tag}'] < willrEMA_short_entry) and  #oversold willrema implying bearish trend
+             (row[f'willr{tag}'] < willr_short_entry) and  #oversold willr implying bearish trend
+             ((row[f'willr_ema{tag}'] + willr_threshold) < row[f'willr_ema_prev{tag}']) and  #more overshold than before
+             not self.position < 0):
+            self.position_open_state = 'short_open'
+        else:
+            self.position_open_state = 'neutral'
+
+        if self.position == 0 and self.position_open_state == 'long_open':
+            if row[self.cross_buy_open_col]:
+                # Long entry
+                self.open_price = row['close']
+                self.time_opened = row['datetime']
+                self.position = 1
+                self.position_open_state = False
+                settings = (row['datetime'], 'Long', 'Open', row['close'])
+                self._execute_trade(settings)
+
+        elif self.position > 0:
+            if (row[self.cross_buy_close_col] or 
+               (stoploss > 0 and row['close'] < self.open_price*(1-stoploss)) or  #stoploss
+               ((row['datetime'] - self.time_opened) > timestop)): #timestop
+                # Long close
+                self.position = 0
+                settings = (row['datetime'], 'Long', 'Close', row['close'])
+                self._execute_trade(settings)
+                return True
+        elif self.position == 0 and self.position_open_state == 'short_open':
+            if row[self.cross_sell_open_col]:
+                # Short entry
+                self.open_price = row['close']
+                self.time_opened = row['datetime']
+                self.position = -1
+                self.position_open_state = False
+                settings = (row['datetime'], 'Short', 'Open', row['close'])
+                self._execute_trade(settings)
+
+        elif self.position < 0:
+            if (row[self.cross_sell_close_col] or 
+               (stoploss > 0 and row['close'] > self.open_price*(1+stoploss)) or  #stoploss
+               ((row['datetime'] - self.time_opened) > timestop)): #timestop
+                # Short close
+                self.position = 0
+                settings = (row['datetime'], 'Short', 'Close', row['close'])
+                self._execute_trade(settings)
                 return True
         return False
 
@@ -820,3 +895,4 @@ class LiveWillRBband(WillRBband):
                     now = dt.datetime.utcnow().timestamp()
                     remaining = self.cfg['series'][0][2] - now % self.cfg['series'][0][2]
                     self.logger.debug(f"Next candle in {next_candle_secs()}s")
+
