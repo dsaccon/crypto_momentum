@@ -2,6 +2,7 @@ def book_query(
         symbol,
         target_vol,
         side='BUY',
+        asset_type='spot',
         target_pct=1,
         client=None) -> tuple:
     """
@@ -21,7 +22,7 @@ def book_query(
     get_accum_vol = lambda a: sum([_[1] for _ in a])
     for book_level in book_levels:
         #
-        book = client.get_book(symbol=symbol, depth=book_level)
+        book = client.get_book(symbol=symbol, depth=book_level, asset_type=asset_type)
         accum = []
         pre_trim_vol = 0
         for level in book[_side]:
@@ -48,3 +49,9 @@ def book_query(
         return (True,) + results
     else:
         return (False,) + results
+
+if __name__ == '__main__':
+    from exchanges.binance import BinanceAPI
+    client = BinanceAPI()
+    result = book_query('LTCUSDT', 10000, side='BUY', asset_type='futures', client=client)
+    print(result)
