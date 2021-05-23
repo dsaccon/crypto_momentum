@@ -252,6 +252,10 @@ class BinanceAPI(ExchangeAPI):
             ---------
             df (pd): pandas dataframe with collected data from API
         """
+        if not period % 60 == 0:
+            self.logger.info(f'Incorrect value: {period}, period must be in secs')
+            return
+
         if endTime is None:
             endTime = dt.datetime.utcnow()
 
