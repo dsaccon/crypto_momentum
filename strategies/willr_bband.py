@@ -13,7 +13,7 @@ import btalib
 from utils.s3 import write_s3
 from .base import BacktestingBaseClass
 
-from utils.sns import SNS_call ### tmp
+from utils.sns import SNS_call
 
 
 class ApplicationStateError(Exception):
@@ -241,10 +241,7 @@ class WillRBband(BacktestingBaseClass):
         df_flt = self.data[0][[f'high_{period_str}_float', f'low_{period_str}_float', f'close_{period_str}_float']]
         df_flt.index = pd.to_datetime(self.data[0].index, unit='s')
 
-        #last_idx = df_flt.index[-1]
-        #last_idx = int(last_idx.timestamp())
         last_idx = int(df_flt.index[-1].timestamp())
-        #period_begin = int(last_idx - last_idx % modulo)
 
         offset = int(last_idx % modulo / self.cfg['series'][0][-1]) - offset
         offset_str = str(int(self.cfg['series'][0][1][:-1])*offset) + self.cfg['series'][0][1][-1]
@@ -332,24 +329,24 @@ class WillRBband(BacktestingBaseClass):
                 # Long entry
                 self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
                 self.position = 1
-                self._trades[-1] += '_long_open' ### tmp
+                self._trades[-1] += '_long_open'
         elif self.position > 0 and row[self.cross_buy_close_col]:
                 # Long close
                 self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
                 self.position = 0
-                self._trades[-1] += '_long_close' ### tmp
+                self._trades[-1] += '_long_close'
                 return True
         elif self.position == 0 and row['willr_ema'] < row['willr_ema_prev']:
             if row[self.cross_sell_open_col]:
                 # Short entry
                 self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
                 self.position = -1
-                self._trades[-1] += '_short_open' ### tmp
+                self._trades[-1] += '_short_open'
         elif self.position < 0 and row[self.cross_sell_close_col]:
                 # Short close
                 self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
                 self.position = 0
-                self._trades[-1] += '_short_close' ### tmp
+                self._trades[-1] += '_short_close'
                 return True
         return False
 
@@ -371,14 +368,14 @@ class WillRBband(BacktestingBaseClass):
                 # Long entry
                 self.trades.append((row['datetime'], 'Long', 'Open', row['close']))
                 self.position = 1
-                self._trades[-1] += '_long_open' ### tmp
+                self._trades[-1] += '_long_open'
                 self.long_open = False
                 self.long_close = True
         elif self.long_close and row[self.cross_buy_close_col]:
                 # Long close
                 self.trades.append((row['datetime'], 'Long', 'Close', row['close']))
                 self.position = 0
-                self._trades[-1] += '_long_close' ### tmp
+                self._trades[-1] += '_long_close'
                 self.long_close = False
                 return True
         elif self.short_open and row['willr_ema'] < row['willr_ema_prev']:
@@ -386,14 +383,14 @@ class WillRBband(BacktestingBaseClass):
                 # Short entry
                 self.trades.append((row['datetime'], 'Short', 'Open', row['close']))
                 self.position = -1
-                self._trades[-1] += '_short_open' ### tmp
+                self._trades[-1] += '_short_open'
                 self.short_open = False
                 self.short_close = True
         elif self.short_close and row[self.cross_sell_close_col]:
                 # Short close
                 self.trades.append((row['datetime'], 'Short', 'Close', row['close']))
                 self.position = 0
-                self._trades[-1] += '_short_close' ### tmp
+                self._trades[-1] += '_short_close'
                 self.short_close = False
                 return True
         return False
@@ -479,8 +476,8 @@ class WillRBband(BacktestingBaseClass):
         #
         if not self._crosses_sanity_check():
             raise SanityCheckError
-        self._trades = [] ### tmp
-        self._POSs = [] ### tmp
+        self._trades = [] # Trade diagnostic col for writing df to csv
+        self._POSs = [] # ""
         self.long_open = False
         self.long_close = False
         self.short_open = False
@@ -491,7 +488,7 @@ class WillRBband(BacktestingBaseClass):
             if self._on_new_candle(_row):
                 # If a position was closed in this candle, check to re-open new position
                 self._on_new_candle(_row)
-            self._POSs.append(self.position_open_state) ### tmp
+            self._POSs.append(self.position_open_state)
 
         self.data[0]['position_open_state'] = self._POSs
         self.data[0]['trades'] = self._trades
@@ -695,7 +692,7 @@ class LiveWillRBband(WillRBband):
         SNS_call(msg=(
             f"Trade: {ts_trade[:10]}, p: {round(trade_status['price'], 2)},"
             f"{hurdle_str}"
-            f" s: {round(float(trade_status['quantity']), 5)}, {position_action}")) ### tmp
+            f" s: {round(float(trade_status['quantity']), 5)}, {position_action}"))
 
     def _live_trade_size(self, params):
         """
@@ -893,6 +890,8 @@ class LiveWillRBband(WillRBband):
             if self._get_latest_candle(0): # Adds 3m candles
                 self._get_latest_candle(1) # Adds 60m candles, hourly
 
+                if self.cfg['floating_willr']:
+                    self._create_floating_ohlc()
                 self.preprocess_data()
                 row = self.data[0].iloc[-1]
                 idx = self.data[0].index[-1]
@@ -901,6 +900,7 @@ class LiveWillRBband(WillRBband):
                     writer = csv.writer(f)
                     writer.writerow([row[-1]] + list(row[:-1]))
                 self._on_new_candle(row)
+                self.data[0].to_csv(f'logs/live_table.csv') ### tmp
                 self.logger.info(f'New candle:\n{row}')
                 self.logger.info(f"Next candle in {next_candle_secs()}s")
             else:
