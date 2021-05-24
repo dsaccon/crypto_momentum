@@ -297,10 +297,11 @@ class BinanceAPI(ExchangeAPI):
 
         df.index = [dt.datetime.utcfromtimestamp(x/1000.0) for x in df.datetime]
         df.datetime = df.datetime.apply(lambda r: int(r/1000))
-        df['completed'] = df.end_time.apply(
-            lambda t: True if dt.datetime.utcnow().timestamp() > t/1000 else False)
-        if completed_only and df['completed'].iloc[-1] == False:
+        df['completed'] = True
+        if completed_only:
             df = df.iloc[:-1]
+        else:
+            df.iloc[-1, df.columns.get_loc('completed')] = False
         return df
 
     @meta(wait=1)
