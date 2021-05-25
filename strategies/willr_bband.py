@@ -690,8 +690,8 @@ class LiveWillRBband(WillRBband):
             hurdle_str = ''
         write_s3(trades_logfile, bkt=self.s3_bkt_name)
         SNS_call(msg=(
-            f"Trade: {ts_trade[:10]}, p: {round(trade_status['price'], 2)},"
-            f"{hurdle_str}"
+            f"{ts_trade[:10]}: Trade - {symbol},"
+            f" p: {round(trade_status['price'], 2)}, {hurdle_str}"
             f" s: {round(float(trade_status['quantity']), 5)}, {position_action}"))
 
     def _live_trade_size(self, params):
