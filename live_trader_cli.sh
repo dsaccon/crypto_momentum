@@ -31,6 +31,8 @@ if [ "$1" == --start ]; then
 elif [ "$1" == --stop ]; then
 	ctr_name=ta_trader_$2
 	sudo docker-compose stop $ctr_name
+elif [ "$1" == --stop-all ]; then
+	sudo docker-compose down
 elif [ "$1" == --show-running ]; then
 	sudo docker ps --filter "name=ta_trader_"
 elif [ "$1" == --show-log ]; then
@@ -40,6 +42,7 @@ else
     echo '    --start <token> '
     echo '    --start <token> --build '
     echo '    --stop <token> '
+    echo '    --stop-all '
     echo '    --show-running '
     echo '    --show-log <token> '
 fi
