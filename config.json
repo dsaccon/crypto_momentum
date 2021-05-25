@@ -79,6 +79,46 @@
     "stoploss": 0.1,
     "timestop":18000
   },
+  "WillRBband_XLM_3m_60m": {
+    "series": [
+      [
+        "xlmusdt",
+        "3m"
+      ],
+      [
+        "xlmusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2021,
+      4,
+      20,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["XLM", "USDT"],
+    "asset_type": "futures",
+    "futures_margin_type": "usdt",
+    "margin_level": 1,
+    "max_trade_size": 100,
+    "spot_short_method": "inv",
+    "inv_neutral_bal": false,
+    "rebal_on_close": false,
+    "floating_willr": true,
+    "willrema_long_entry":-65,
+    "willrema_short_entry":-35,
+    "willrema_diff_threshold":0.65,
+    "willr_long_entry":-100,
+    "willr_short_entry":0,
+    "stoploss": 0.1,
+    "timestop":18000
+  },
   "WillRBband_ETH_3m_60m": {
     "series": [
       [
