@@ -9,7 +9,7 @@ services:
     networks:
       - net
     volumes:
-      - ./.docker/LTC/:/crypto_momentum/logs
+      - ./logs/docker/LTC/:/crypto_momentum/logs
     environment:
         - BINANCE_KEY=${BINANCE_KEY}
         - BINANCE_SECRET=${BINANCE_SECRET}
@@ -24,7 +24,7 @@ services:
     networks:
       - net
     volumes:
-      - ./.docker/XLM/:/crypto_momentum/logs
+      - ./logs/docker/XLM/:/crypto_momentum/logs
     environment:
         - BINANCE_KEY=${BINANCE_KEY}
         - BINANCE_SECRET=${BINANCE_SECRET}
