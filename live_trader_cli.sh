@@ -5,8 +5,14 @@
 if [ "$1" == --start ]; then
 	ctr_name=ta_trader_$2
     if [ "$3" == --build ]; then
-        sudo docker stop $ctr_name
-        sudo docker rm $ctr_name
+	    str=$(sudo docker ps --filter "name=$ctr_name" | grep -v CREATED)
+        if [[ "$str" == *"$ctr_name"* ]]; then
+            sudo docker stop $ctr_name
+        fi
+	    str=$(sudo docker ps -a --filter "name=$ctr_name" | grep -v CREATED)
+        if [[ "$str" == *"$ctr_name"* ]]; then
+            sudo docker rm $ctr_name
+        fi
         sudo AWS_SNS_KEY=$AWS_SNS_KEY AWS_SNS_SECRET=$AWS_SNS_SECRET \
             BINANCE_KEY=$BINANCE_KEY BINANCE_SECRET=$BINANCE_SECRET \
             docker-compose up -d --build $ctr_name
