@@ -31,6 +31,36 @@ services:
         - AWS_SNS_KEY=${AWS_SNS_KEY}
         - AWS_SNS_SECRET=${AWS_SNS_SECRET}
 
+  ta_trader_BCH:
+    build: .
+    image: ta_trader_img
+    container_name: ta_trader_BCH
+    entrypoint: python live_trader.py -n WillRBband_BCH_3m_60m
+    networks:
+      - net
+    volumes:
+      - ./logs/docker/BCH/:/crypto_momentum/logs
+    environment:
+        - BINANCE_KEY=${BINANCE_KEY}
+        - BINANCE_SECRET=${BINANCE_SECRET}
+        - AWS_SNS_KEY=${AWS_SNS_KEY}
+        - AWS_SNS_SECRET=${AWS_SNS_SECRET}
+
+  ta_trader_LINK:
+    build: .
+    image: ta_trader_img
+    container_name: ta_trader_LINK
+    entrypoint: python live_trader.py -n WillRBband_LINK_3m_60m
+    networks:
+      - net
+    volumes:
+      - ./logs/docker/LINK/:/crypto_momentum/logs
+    environment:
+        - BINANCE_KEY=${BINANCE_KEY}
+        - BINANCE_SECRET=${BINANCE_SECRET}
+        - AWS_SNS_KEY=${AWS_SNS_KEY}
+        - AWS_SNS_SECRET=${AWS_SNS_SECRET}
+
 networks:
    net:
        driver: bridge
