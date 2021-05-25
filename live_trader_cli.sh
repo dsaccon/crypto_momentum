@@ -14,12 +14,15 @@ if [ "$1" == --start ]; then
 elif [ "$1" == --stop ]; then
 	ctr_name=ta_trader_$2
 	sudo docker-compose stop $ctr_name
-elif [ "$1" == --show ]; then
+elif [ "$1" == --show-running ]; then
 	sudo docker ps --filter "name=ta_trader_"
+elif [ "$1" == --show-log ]; then
+    tail -f logs/docker/$2/live_trader.log
 else
     echo 'Manage per-token trader instances. Options:'
     echo '    --start <token> '
     echo '    --start <token> --build '
     echo '    --stop <token> '
-    echo '    --show '
+    echo '    --show-running '
+    echo '    --show-log <token> '
 fi
