@@ -1,0 +1,36 @@
+version: '3'
+services:
+
+  ta_trader_LTC:
+    build: .
+    image: ta_trader_img
+    container_name: ta_trader_LTC
+    entrypoint: python live_trader.py -n WillRBband_LTC_3m_60m
+    networks:
+      - net
+    volumes:
+      - ./.docker/LTC/:/crypto_momentum/logs
+    environment:
+        - BINANCE_KEY=${BINANCE_KEY}
+        - BINANCE_SECRET=${BINANCE_SECRET}
+        - AWS_SNS_KEY=${AWS_SNS_KEY}
+        - AWS_SNS_SECRET=${AWS_SNS_SECRET}
+
+  ta_trader_XLM:
+    build: .
+    image: ta_trader_img
+    container_name: ta_trader_XLM
+    entrypoint: python live_trader.py -n WillRBband_XLM_3m_60m
+    networks:
+      - net
+    volumes:
+      - ./.docker/XLM/:/crypto_momentum/logs
+    environment:
+        - BINANCE_KEY=${BINANCE_KEY}
+        - BINANCE_SECRET=${BINANCE_SECRET}
+        - AWS_SNS_KEY=${AWS_SNS_KEY}
+        - AWS_SNS_SECRET=${AWS_SNS_SECRET}
+
+networks:
+   net:
+       driver: bridge
