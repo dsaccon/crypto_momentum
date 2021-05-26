@@ -66,7 +66,7 @@
     "asset_type": "futures",
     "futures_margin_type": "usdt",
     "margin_level": 1,
-    "max_trade_size": 1,
+    "max_trade_size": 30,
     "spot_short_method": "inv",
     "inv_neutral_bal": false,
     "rebal_on_close": false,
@@ -106,7 +106,87 @@
     "asset_type": "futures",
     "futures_margin_type": "usdt",
     "margin_level": 1,
-    "max_trade_size": 100,
+    "max_trade_size": 5000,
+    "spot_short_method": "inv",
+    "inv_neutral_bal": false,
+    "rebal_on_close": false,
+    "floating_willr": true,
+    "willrema_long_entry":-65,
+    "willrema_short_entry":-35,
+    "willrema_diff_threshold":0.65,
+    "willr_long_entry":-100,
+    "willr_short_entry":0,
+    "stoploss": 0.1,
+    "timestop":18000
+  },
+  "WillRBband_BCH_3m_60m": {
+    "series": [
+      [
+        "bchusdt",
+        "3m"
+      ],
+      [
+        "bchusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2021,
+      4,
+      20,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["BCH", "USDT"],
+    "asset_type": "futures",
+    "futures_margin_type": "usdt",
+    "margin_level": 1,
+    "max_trade_size": 2,
+    "spot_short_method": "inv",
+    "inv_neutral_bal": false,
+    "rebal_on_close": false,
+    "floating_willr": true,
+    "willrema_long_entry":-65,
+    "willrema_short_entry":-35,
+    "willrema_diff_threshold":0.65,
+    "willr_long_entry":-100,
+    "willr_short_entry":0,
+    "stoploss": 0.1,
+    "timestop":18000
+  },
+  "WillRBband_LINK_3m_60m": {
+    "series": [
+      [
+        "linkusdt",
+        "3m"
+      ],
+      [
+        "linkusdt",
+        "60m"
+      ]
+    ],
+    "num_periods": [null, null],
+    "exchange": "binance",
+    "strategy": "WillRBband",
+    "start": [
+      2021,
+      4,
+      20,
+      0,
+      0
+    ],
+    "end": null,
+    "start_capital": 10000,
+    "symbol": ["LINK", "USDT"],
+    "asset_type": "futures",
+    "futures_margin_type": "usdt",
+    "margin_level": 1,
+    "max_trade_size": 50,
     "spot_short_method": "inv",
     "inv_neutral_bal": false,
     "rebal_on_close": false,
