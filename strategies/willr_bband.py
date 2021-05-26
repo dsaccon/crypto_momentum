@@ -690,10 +690,10 @@ class LiveWillRBband(WillRBband):
             hurdle_str = ''
         write_s3(trades_logfile, bkt=self.s3_bkt_name)
         SNS_call(msg=(
-            f"{ts_trade[:10]}: {symbol},"
+            f"{ts_trade[:10]}: {self.cfg['symbol'][0]},"
             f" p: {round(trade_status['price'], 2)}, {hurdle_str}"
-            f" s: {round(float(trade_status['quantity']), 5)}, {position_action}"
-            f" nl: {round(netliq_after)}"))
+            f" s: {round(float(trade_status['quantity']), 5)}, {position_action},"
+            f" nl: {round(float(netliq_after), 2)}"))
 
     def _live_trade_size(self, params):
         """
@@ -707,9 +707,17 @@ class LiveWillRBband(WillRBband):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         book = self.exchange.get_book(symbol=symbol, asset_type=self.cfg['asset_type'])
-        sig_digs = len(
-            self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')[1])
-        round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
+        prec = self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')
+        if len(prec) == 2:
+            sig_digs = len(prec[1])
+            round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
+        elif len(prec) == 1:
+            sig_digs = len(prec[0]) - 1
+            round_down = lambda x: x - x % 10**sig_digs
+        else:
+            raise ApplicationStateError
+#        sig_digs = len(
+#            self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')[1])
         if self.cfg['asset_type'] == 'spot':
             fee = self.exchange.trade_fees['spot'][symbol]['taker']
             fee_asset = self.exchange.trade_fee_spot_asset
@@ -889,7 +897,11 @@ class LiveWillRBband(WillRBband):
         while True:
             # Periodically update candles from API
             if self._get_latest_candle(0): # Adds 3m candles
-                self._get_latest_candle(1) # Adds 60m candles, hourly
+                now = dt.datetime.utcnow().timestamp()
+                self.logger.info(f"{now}: {self.cfg['series'][0][1]} candle fetched")
+                if self._get_latest_candle(1): # Adds 60m candles, hourly
+                    now = dt.datetime.utcnow().timestamp()
+                    self.logger.info(f"{now}: {self.cfg['series'][1][1]} candle fetched")
 
                 if self.cfg['floating_willr']:
                     self._create_floating_ohlc()
@@ -900,10 +912,10 @@ class LiveWillRBband(WillRBband):
                 with open(f'logs/live_candles.csv', 'a') as f:
                     writer = csv.writer(f)
                     writer.writerow([row[-1]] + list(row[:-1]))
+                self.logger.info(f'{dt.datetime.utcnow().timestamp()}:New row:\n{row}')
                 self._on_new_candle(row)
-                self.data[0].to_csv(f'logs/live_table.csv') ### tmp
-                self.logger.info(f'New candle:\n{row}')
                 self.logger.info(f"Next candle in {next_candle_secs()}s")
+                self.data[0].to_csv(f'logs/live_table.csv') ### tmp
             else:
                 time.sleep(1)
                 if int(str(int(dt.datetime.utcnow().timestamp()))[-1]) % 9 == 0:
