@@ -16,14 +16,14 @@
     "start": [
       2021,
       4,
-      1,
+      21,
       0,
       0
     ],
     "end": [
       2021,
-      4,
-      10,
+      5,
+      25,
       0,
       0
     ],
@@ -34,13 +34,14 @@
     "inv_neutral_bal": false,
     "rebal_on_close": false,
     "floating_willr": true,
-    "willrema_long_entry":-100,
-    "willrema_short_entry":0,
-    "willrema_diff_threshold":0.4,
+    "willrema_long_entry":-65,
+    "willrema_short_entry":-35,
+    "willrema_diff_threshold":0.65,
     "willr_long_entry":-100,
     "willr_short_entry":0,
     "stoploss": 0.1,
-    "timestop":18000
+    "timestop":18000,
+    "execution_name": "_execute_trade_all_params_willemastop"
   },
   "WillRBband_ETH_3m_60m": {
     "series": [
