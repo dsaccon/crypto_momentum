@@ -20,11 +20,12 @@ class BacktestingBaseClass:
 	'<': operator.lt,
     }
 
-    def __init__(self, data, exch_obj, cfg):
+    def __init__(self, data, exch_obj, cfg, bt_start=None):
         self.execution_mode = None # 'backtest' or 'live'
         self.data = data
-        self.cfg = cfg
         self.exchange = exch_obj
+        self.cfg = cfg
+        self.bt_start = dt.datetime(*bt_start) if not bt_start is None else bt_start
         self.trades = []
         self.pnl = 0
         self.position = 0
