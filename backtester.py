@@ -6,7 +6,6 @@ import datetime as dt
 import argparse
 import importlib
 import logging
-import concurrent.futures
 import matplotlib.pyplot as plt
 import backtrader as bt
 import backtrader.analyzers as btanalyzers
@@ -31,6 +30,8 @@ class Base:
         self.run_name = args.name
         self.path = '/'.join(os.path.abspath(__file__).split('/')[:-1])
 
+        self.data_prefetch_period = 10*86400
+
         self._load_config()
 
         # Overwrite config file settings from cli args
@@ -48,12 +49,6 @@ class Base:
             self.trading_cfg['num_periods'] = args.num_periods
         if args.asset_type:
             self.trading_cfg['asset_type'] = args.asset_type
-        self.start = tuple(args.start) if args.start else self.start
-        self.start_ts = int(dt.datetime(*self.start).timestamp())
-        if args.end is not False:
-            self.end = tuple(args.end) if args.end else args.end
-            if self.end:
-                self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
 
         for _cfg in self.data_cfg:
             i = 1
@@ -72,6 +67,16 @@ class Base:
                 i = 2
             _cfg.append(int(_cfg[1][:-i])*_mult)
         self.trading_cfg['series'] = self.data_cfg
+
+        self.start = tuple(args.start) if args.start else self.start
+#        self.start_ts = int(dt.datetime(*self.start).timestamp())
+        self.start_prefetch = dt.datetime(*self.start) - dt.timedelta(seconds=self.data_prefetch_period)
+        self._align_first_row()
+
+        if args.end is not False:
+            self.end = tuple(args.end) if args.end else args.end
+            if self.end:
+                self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
 
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
@@ -105,10 +110,37 @@ class Base:
         self.trading_cfg = cfg[self.run_name]
 
 
-    def _get_data_api(self, period):
+    def _align_first_row(self):
+        """
+
+        Make sure starting row aligns between both the longer and shorter series
+
+        """
+        longest_period = max([_[2] for _ in self.data_cfg])
+        shortest_period = min([_[2] for _ in self.data_cfg])
+        if not longest_period % shortest_period == 0:
+            raise DataConfigurationError
+
+        start_ts = int(self.start_prefetch.timestamp())
+        while True:
+            # Push back start ts until it lines up with both series' periods
+            if start_ts % longest_period == 0:
+                break
+            else:
+                start_ts -= 1
+        self.start_prefetch = dt.datetime.fromtimestamp(start_ts)
+#        self.start_prefetch = (
+#            start.year,
+#            start.month,
+#            start.day,
+#            start.hour,
+#            start.minute)
+
+    def _get_data_api(self, period, start=None):
         df_list = []
-        self.start = self.start + tuple([0 for i in range(len(self.start), 5)])
-        start_dt = dt.datetime(*self.start)
+#        self.start = self.start + tuple([0 for i in range(len(self.start), 5)])
+#        start_dt = dt.datetime(*self.start)
+        start_dt = self.start_prefetch
         if self.end is None:
             end_dt = None
         else:
@@ -130,7 +162,6 @@ class Base:
             if not self.exchange_obj.max_candles_fetch or secs_til_end < period[2]*self.exchange_obj.max_candles_fetch:
                 break
             start_dt = max(new_df.index) + dt.timedelta(seconds=period[2])
-
         self.end = (_end_dt.year, _end_dt.month, _end_dt.day, _end_dt.hour, _end_dt.minute)
         self.end_ts = int(dt.datetime(*self.end).timestamp())
         self.df.append(pd.concat(df_list))
@@ -200,7 +231,7 @@ class Base:
             f'{self.exchange_cls.__name__}'
             f'_{self.data_cfg[i][0]}'
             f'_{self.data_cfg[i][1]}'
-            f'_{self.start_ts}_{self.end_ts}.csv')
+            f'_{int(self.start_prefetch.timestamp())}_{self.end_ts}.csv')
         if not os.path.exists(f'{self.path}/data/'):
             os.mkdir('data/')
         self.df[i][self.df_expected_cols[1:]].to_csv(f'{self.path}/data/{filename}')
@@ -262,9 +293,10 @@ class Backtest(Base):
 
     def _get_best_csv(self, symbol, period):
         # Figures out which csv file has the biggest range of data in desired range
+        _start_ts = int(self.start_prefetch.timestamp())
         filename_prefix = f'{self.exchange_cls.__name__}_{symbol.lower()}_{period}'
         files = [f for f in os.listdir('data/') if f.startswith(filename_prefix)]
-        files = [f for f in files if self.start_ts >= int(f.strip('.csv').split('_')[-2])]
+        files = [f for f in files if _start_ts >= int(f.strip('.csv').split('_')[-2])]
         best_file = files[0]
         _end = self.end if self.end else int(dt.datetime.utcnow().timestamp())
         for f in files:
@@ -273,7 +305,7 @@ class Backtest(Base):
             else:
                 csv_end = _end
             _best = best_file.strip('.csv').split('_')
-            if csv_end - self.start_ts > int(_best[-1]) - int(_best[-2]):
+            if csv_end - _start_ts > int(_best[-1]) - int(_best[-2]):
                 best_file = f
         return best_file
 
@@ -285,7 +317,7 @@ class Backtest(Base):
             data = self.df
         else:
             raise DataCollectionError
-        self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
+        self.strategy(self.df, self.exchange_obj, self.trading_cfg, self.start).run()
 
     def run_backtrader(self):
         cerebro = bt.Cerebro()
@@ -306,9 +338,9 @@ class Backtest(Base):
 
         back = cerebro.run()
 
-        print('P&L:', cerebro.broker.getvalue() - start_cash) # Ending balance
-        print('analysis:', back[0].analyzers.sharpe.get_analysis()) # Sharpe
-        print('number of trades:', len(back[0].analyzers.trans.get_analysis())) # Number of Trades
+        print('P&L:', cerebro.broker.getvalue() - start_cash)
+        print('analysis:', back[0].analyzers.sharpe.get_analysis())
+        print('number of trades:', len(back[0].analyzers.trans.get_analysis()))
         cerebro.plot()
 
 
