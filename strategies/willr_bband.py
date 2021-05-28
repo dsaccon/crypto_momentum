@@ -399,12 +399,20 @@ class WillRBband(BacktestingBaseClass):
         """
         Modified trade logic.
         inclues willrema_long/short entry, willr_long/short_entry, willrema_diff_threshold
-        and stoploss and timestop 
+        and stoploss and timestop
+
+		Arguments
+		---------
+		row (dict):     candle update, converted from last row of self.data[0] df
+
+		Returns
+		---------
+		(bool):         True if a position was closed, else False
+
         """
         tag = ''
         if self.cfg['floating_willr']:
             tag = f"_{self.cfg['series'][1][1]}_float"
-        
 
         willr_threshold = self.cfg['willrema_diff_threshold']
         willrEMA_long_entry = self.cfg['willrema_long_entry'] #-100 will ignore threshold
@@ -414,7 +422,6 @@ class WillRBband(BacktestingBaseClass):
 
         timestop =  self.cfg['timestop']
         stoploss =  self.cfg['stoploss']
-
 
         if ((row[f'willr_ema{tag}']  > willrEMA_long_entry) and  #overbought willrema implying bullish trend
            (row[f'willr{tag}']  > willr_long_entry) and  #overbought willr implying bullish trend
@@ -438,7 +445,6 @@ class WillRBband(BacktestingBaseClass):
                 self.position_open_state = False
                 settings = (row['datetime'], 'Long', 'Open', row['close'])
                 self._execute_trade(settings)
-
         elif self.position > 0:
             if (row[self.cross_buy_close_col] or 
                (stoploss > 0 and row['close'] < self.open_price*(1-stoploss)) or  #stoploss
@@ -457,7 +463,6 @@ class WillRBband(BacktestingBaseClass):
                 self.position_open_state = False
                 settings = (row['datetime'], 'Short', 'Open', row['close'])
                 self._execute_trade(settings)
-
         elif self.position < 0:
             if (row[self.cross_sell_close_col] or 
                (stoploss > 0 and row['close'] > self.open_price*(1+stoploss)) or  #stoploss
@@ -484,40 +489,41 @@ class WillRBband(BacktestingBaseClass):
         self.short_close = False
         for i, row in self.data[0].iterrows(): # iterate over 3m series
             _row = row.append(pd.Series([i], index=['datetime']))
-            self._trades.append('')
-            if self._on_new_candle(_row):
-                # If a position was closed in this candle, check to re-open new position
-                self._on_new_candle(_row)
-            self._POSs.append(self.position_open_state)
+            if _row['datetime'] >= self.bt_start.timestamp(): # Skip pre-fetch rows
+                self._trades.append('')
+                if self._on_new_candle(_row):
+                    # If a position was closed in this candle, check to re-open new position
+                    self._on_new_candle(_row)
+                self._POSs.append(self.position_open_state)
 
-        self.data[0]['position_open_state'] = self._POSs
-        self.data[0]['trades'] = self._trades
-
-        self.calc_pnl()
-
-        # Plotting
-        balances_dt = [b[0] for b in self.balances]
-        bals = [
-            self.balances[balances_dt.index(i)][1]
-            if i in balances_dt else None
-            for i in self.data[0].index
-        ]
-        self.data[0]['balances'] = bals
-        self.data[0]['date'] = [
-            dt.datetime.fromtimestamp(i).strftime('%Y-%m-%d:%H-%M-%S')
-            for i in self.data[0].index
-        ]
-
-        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        if self.cfg['end']:
-            end = self.cfg['end']
-        else:
-            end = dt.datetime.fromtimestamp(self.start_time)
-            end = (end.year, end.month, end.day, end.hour, end.minute)
-        plt_title = f'{symbol} ({self.cfg["asset_type"]}): {self.cfg["start"]} - {end}'
-        self.data[0].fillna(method='ffill').plot(x='date', y='balances', title=plt_title)
-        plt_file = f'logs/plots/{symbol}_{self.start_time}.pdf'
-        plt.savefig(f'logs/plots/{symbol}_{self.start_time}.pdf')
+#        self.data[0]['position_open_state'] = self._POSs
+#        self.data[0]['trades'] = self._trades
+#
+#        self.calc_pnl()
+#
+#        # Plotting
+#        balances_dt = [b[0] for b in self.balances]
+#        bals = [
+#            self.balances[balances_dt.index(i)][1]
+#            if i in balances_dt else None
+#            for i in self.data[0].index
+#        ]
+#        self.data[0]['balances'] = bals
+#        self.data[0]['date'] = [
+#            dt.datetime.fromtimestamp(i).strftime('%Y-%m-%d:%H-%M-%S')
+#            for i in self.data[0].index
+#        ]
+#
+#        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+#        if self.cfg['end']:
+#            end = self.cfg['end']
+#        else:
+#            end = dt.datetime.fromtimestamp(self.start_time)
+#            end = (end.year, end.month, end.day, end.hour, end.minute)
+#        plt_title = f'{symbol} ({self.cfg["asset_type"]}): {self.cfg["start"]} - {end}'
+#        self.data[0].fillna(method='ffill').plot(x='date', y='balances', title=plt_title)
+#        plt_file = f'logs/plots/{symbol}_{self.start_time}.pdf'
+#        plt.savefig(f'logs/plots/{symbol}_{self.start_time}.pdf')
 
         # Trades logging
         with open(f'logs/backtesting_trades.csv', 'a', newline='') as f:
@@ -532,9 +538,9 @@ class WillRBband(BacktestingBaseClass):
             f' num trades: {len(self.trades)}'
             f' dataframe: {self.data[0].shape}')
 
-        # Upload files to S3
-        write_s3('logs/backtester.log', bkt=self.s3_bkt_name)
-        write_s3(plt_file, bkt=self.s3_bkt_name)
+#        # Upload files to S3
+#        write_s3('logs/backtester.log', bkt=self.s3_bkt_name)
+#        write_s3(plt_file, bkt=self.s3_bkt_name)
 
 class LiveWillRBband(WillRBband):
 
@@ -681,17 +687,24 @@ class LiveWillRBband(WillRBband):
         with open(trades_logfile, 'a', newline='') as f:
             writer = csv.writer(f)
             writer.writerow(row)
+        write_s3(trades_logfile, bkt=self.s3_bkt_name)
+        # Placeholder for write to InfluxDB
+
+        # Send SMS
+        round_to = 2
+        prec = self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')
+        if len(prec) == 1: # Precision > 0, smaller token priced < $1
+            round_to = 4
         if position_action.endswith('close'):
             fees = 2*self.exchange.trade_fees[self.cfg['asset_type']][symbol]['taker']
             op = operator.add if position_action.startswith('long') else operator.sub
-            hurdle = round(op(1, fees)*self.last_order[0]['price'], 2)
+            hurdle = round(op(1, fees)*self.last_order[0]['price'], round_to)
             hurdle_str = f' h: {hurdle},'
         else:
             hurdle_str = ''
-        write_s3(trades_logfile, bkt=self.s3_bkt_name)
         SNS_call(msg=(
             f"{ts_trade[:10]}: {self.cfg['symbol'][0]},"
-            f" p: {round(trade_status['price'], 2)}, {hurdle_str}"
+            f" p: {round(trade_status['price'], round_to)}, {hurdle_str}"
             f" s: {round(float(trade_status['quantity']), 5)}, {position_action},"
             f" nl: {round(float(netliq_after), 2)}"))
 
@@ -708,10 +721,10 @@ class LiveWillRBband(WillRBband):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         book = self.exchange.get_book(symbol=symbol, asset_type=self.cfg['asset_type'])
         prec = self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')
-        if len(prec) == 2:
+        if len(prec) == 2: # Precision < 0, token price > $1
             sig_digs = len(prec[1])
             round_down = lambda x: int(x*10**sig_digs)/10**sig_digs
-        elif len(prec) == 1:
+        elif len(prec) == 1: # Precision > 0, smaller token priced < $1
             sig_digs = len(prec[0]) - 1
             round_down = lambda x: x - x % 10**sig_digs
         else:
