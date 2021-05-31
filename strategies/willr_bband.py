@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import btalib
 
 from utils.s3 import write_s3
+from utils.influxdb import InfluxDBClient
 from .base import BacktestingBaseClass
 
 from utils.sns import SNS_call
@@ -549,12 +550,14 @@ class LiveWillRBband(WillRBband):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.execution_mode = 'live'
+        self.live_tradelog_cols = tuple()
         self._live_tradelog_setup()
         self.last_order = tuple() # (order_status: dict, bals: dict, size: float, position_action: str)
         self.neutral_inv = self.cfg['inv_neutral_bal']
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
+        self.influxdb_client = None
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
@@ -581,6 +584,7 @@ class LiveWillRBband(WillRBband):
             'netliq_after',
             'margin_bal_before',
             'margin_bal_after')
+        self.live_tradelog_cols = cols
         if self.cfg['asset_type'] == 'spot':
             netliq = self._get_netliq()
             margin_bal = ''
