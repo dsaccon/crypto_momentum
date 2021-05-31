@@ -14,6 +14,7 @@ ta-lib = "*"
 python-binance = "*"
 boto3 = "*"
 python-dotenv = "*"
+influxdb = "*"
 
 [dev-packages]
 
