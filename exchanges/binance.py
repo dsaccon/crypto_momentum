@@ -182,7 +182,9 @@ class BinanceAPI(ExchangeAPI):
         )
         if self._external_client:
             tier = self._external_client.futures_account().get('feeTier')
-            fees = self._external_client.get_trade_fee()
+            fees = {
+                'tradeFee': self._external_client.get_trade_fee()
+            }
         else:
             tier = 'none'
             fees = {
@@ -191,10 +193,12 @@ class BinanceAPI(ExchangeAPI):
                     for s in spot_symbols
                 ]
             }
-
         fees = {
             'spot': {
-                s['symbol']: {'maker': s['maker'], 'taker': s['taker']}
+                s['symbol']: {
+                    'maker': s['makerCommission'],
+                    'taker': s['takerCommission']
+                }
                 for s in fees['tradeFee']
             },
             'futures': {
