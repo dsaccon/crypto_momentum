@@ -34,10 +34,7 @@ class WillRBband(BacktestingBaseClass):
             'short_close_cross': ('close', 'bband_20_low'),
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
-        #_execution_type = '_execute_trade_anytime_entry'
-        _execution_type = '_execute_trade_all_params'
-    
-        self._on_new_candle = getattr(self, _execution_type)
+        self._on_new_candle = getattr(self, self.cfg['execution_name'])
 
     def _backtesting_tradelog_setup(self):
         cols = (
@@ -50,6 +47,7 @@ class WillRBband(BacktestingBaseClass):
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         bt_params = ' asset_type:' + self.cfg['asset_type'] + \
                     ' strategy:'   + self.cfg['strategy'] + \
+                    ' execution_name:' + self.cfg['execution_name'] + \
                     ' floating_willr:' + str(self.cfg['floating_willr']) + \
                     ' ENTRY PARAMS:' + \
                     ' willr_diff_threshold:' + str(self.cfg['willrema_diff_threshold']) + \
@@ -733,8 +731,7 @@ class LiveWillRBband(WillRBband):
             round_down = lambda x: x - x % 10**sig_digs
         else:
             raise ApplicationStateError
-#        sig_digs = len(
-#            self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')[1])
+
         if self.cfg['asset_type'] == 'spot':
             fee = self.exchange.trade_fees['spot'][symbol]['taker']
             fee_asset = self.exchange.trade_fee_spot_asset
