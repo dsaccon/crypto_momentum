@@ -8,10 +8,10 @@ import backtrader as bt
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from utils.influxdb import InfluxDBClient
 import btalib
 
 from utils.s3 import write_s3
-from utils.influxdb import InfluxDBClient
 from .base import BacktestingBaseClass
 
 from utils.sns import SNS_call
@@ -35,6 +35,7 @@ class WillRBband(BacktestingBaseClass):
         }
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
         self._on_new_candle = getattr(self, self.cfg['execution_name'])
+        self.influxdb_client = InfluxDBClient()
 
     def _backtesting_tradelog_setup(self):
         cols = (
@@ -555,7 +556,6 @@ class LiveWillRBband(WillRBband):
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
-        self.influxdb_client = None
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
@@ -690,6 +690,32 @@ class LiveWillRBband(WillRBband):
             writer = csv.writer(f)
             writer.writerow(row)
         write_s3(trades_logfile, bkt=self.s3_bkt_name)
+        row_influx = [
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+            float(row[5]),
+            float(row[6]),
+            float(row[7]),
+            float(row[8]),
+            float(row[9]),
+            row[10],
+            row[11],
+            float(row[12]),
+            row[13],
+            row[14],
+            row[15],
+            float(row[16]),
+            float(row[17]),
+            float(row[18]),
+            float(row[19]),
+            row[20],
+            row[21],
+        ]
+        self.influxdb_client.write_trade(row_influx)
+
         # Placeholder for write to InfluxDB
 
         # Send SMS
