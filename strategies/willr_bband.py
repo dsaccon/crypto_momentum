@@ -716,8 +716,6 @@ class LiveWillRBband(WillRBband):
         ]
         self.influxdb_client.write_trade(row_influx)
 
-        # Placeholder for write to InfluxDB
-
         # Send SMS
         round_to = 2
         prec = self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')
