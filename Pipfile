@@ -15,6 +15,7 @@ python-binance = "*"
 boto3 = "*"
 python-dotenv = "*"
 influxdb = "*"
+psycopg2 = "*"
 
 [dev-packages]
 
