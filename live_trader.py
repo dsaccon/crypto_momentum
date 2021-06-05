@@ -6,7 +6,6 @@ import datetime as dt
 import argparse
 import logging
 import importlib
-import docker
 from dotenv import load_dotenv
 
 import strategies
