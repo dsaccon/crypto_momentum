@@ -6,6 +6,7 @@ import datetime as dt
 import argparse
 import logging
 import importlib
+import docker
 from dotenv import load_dotenv
 
 import strategies
@@ -114,7 +115,18 @@ class LiveTrader(Base):
 
         return True
 
+    def live_status(self, tokens):
+        for tkn in tokens:
+            status = self.exchange_obj.futures_get_positions(symbol=f'{tkn}USDT')
+            if not float(status['unrealizedProfit']) == 0:
+                print(f"{tkn}: {status['unrealizedProfit']}")
+        desk_nl = self.exchange_obj._futures_get_balances()['totalMarginBalance']
+        print(f'Desk NL: {desk_nl}')
+
     def run(self):
+        if self.args.live_status:
+            self.live_status(self.args.live_status)
+            return
         if self.get_data():
             data = self.df
         else:
@@ -137,11 +149,12 @@ def test_setup():
 
 if __name__ == '__main__':
     load_dotenv()
-    logfile = 'logs/live_trader.log'
-    print(f'Running live trader app, check logs at {logfile}')
-    if not os.path.isdir('logs/'):
-        os.mkdir('logs')
-    logging.basicConfig(filename=logfile, level=logging.INFO)
-    logging.info(f'{int(dt.datetime.utcnow().timestamp())}: Starting live trader')
     args = parse_args()
+    if not args.live_status:
+        logfile = 'logs/live_trader.log'
+        print(f'Running live trader app, check logs at {logfile}')
+        if not os.path.isdir('logs/'):
+            os.mkdir('logs')
+        logging.basicConfig(filename=logfile, level=logging.INFO)
+        logging.info(f'{int(dt.datetime.utcnow().timestamp())}: Starting live trader')
     LiveTrader(args).run()
