@@ -27,6 +27,7 @@ class Object(object):
 class Base:
     def __init__(self, args):
 
+        self.args = args
         self.run_name = args.name
         self.path = '/'.join(os.path.abspath(__file__).split('/')[:-1])
 
@@ -347,7 +348,7 @@ class Backtest(Base):
 def parse_args():
     argp = argparse.ArgumentParser()
     argp.add_argument(
-        "-n", "--name", type=str, default='default', help="Settings name from config file"
+        "-n", "--name", type=str, default='WillRBbandEvo_BTC_3m_60m', help="Settings name from config file"
     )
     argp.add_argument(
         "-e", "--exchange", type=str, default=None, help="Exchange"
@@ -365,19 +366,22 @@ def parse_args():
         "--end", type=int, default=False, nargs='*', help="End of period. For backtesting only"
     )
     argp.add_argument(
-        "-a", "--asset_type", type=str, default=None, help="Asset type (spot, futures)"
+        "-l", "--live-status", type=str, default=None, nargs="*", help="Show position status. Pass in list of tokens. For live trading only"
+    )
+    argp.add_argument(
+        "-a", "--asset-type", type=str, default=None, help="Asset type (spot, futures)"
     )
     argp.add_argument(
         "-p", "--period", type=str, default=None, nargs="*", help="Candle period"
     )
     argp.add_argument(
-        "--num_periods", type=int, default=None, nargs="*", help="Number of periods"
+        "--num-periods", type=int, default=None, nargs="*", help="Number of periods"
     )
     argp.add_argument(
         "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data folder. For backtesting only"
     )
     argp.add_argument(
-        "-t", "--use_testnet", action='store_true', help="Set to False to run on live account. For live trading only"
+        "-t", "--use-testnet", action='store_true', help="Set to False to run on live account. For live trading only"
     )
 
     args = argp.parse_args()
