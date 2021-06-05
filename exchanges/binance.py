@@ -371,6 +371,7 @@ class BinanceAPI(ExchangeAPI):
 
         return trades
 
+    @meta(wait=1)
     def get_book(self, symbol='BTCUSDT', asset_type='spot', depth=100):
         if asset_type == 'spot':
             base_uri = self.API_URL
@@ -426,6 +427,7 @@ class BinanceAPI(ExchangeAPI):
     ### SPOT ###
 
     # ACCOUNT ENDPOINTS
+    @meta(wait=1)
     def get_balances(self, asset='all', asset_type='spot', filter_zero=False):
         if asset_type == 'spot':
             bals = self._external_client.get_account()['balances']
@@ -693,10 +695,12 @@ class BinanceAPI(ExchangeAPI):
 
     # ACCOUNT ENDPOINTS
 
+    @meta(wait=1)
     def futures_get_balances(self):
         resp = self._external_client.futures_account_balance()
         return {s['asset']:s['balance'] for s in resp}
 
+    @meta(wait=1)
     def _futures_get_balances(self):
         """
         Different info than previous
@@ -722,6 +726,7 @@ class BinanceAPI(ExchangeAPI):
         order_id = self.futures_place_order(symbol, side, quantity)
         return order_id
 
+    @meta(wait=1)
     def futures_get_positions(self, symbol=None, filter_zero=False):
         resp = self._external_client.futures_account()
         if symbol:
@@ -734,6 +739,7 @@ class BinanceAPI(ExchangeAPI):
                 ]
             return resp['positions']
 
+    @meta(wait=1)
     def _futures_get_positions(self):
         """
         WIP. Gives slightly different info than from futures_get_positions()
@@ -756,6 +762,7 @@ class BinanceAPI(ExchangeAPI):
             'type': 'LIMIT' if x['maker'] == 'true' else 'MARKET',
             'price': x['price'],
             'quantity': x['qty'],
+            'realized_pnl': x['realizedPnl'],
             'fee': x['commission'],
             'fee_asset': x['commissionAsset'],
         }
@@ -763,7 +770,16 @@ class BinanceAPI(ExchangeAPI):
             trades = [parser(tr) for tr in resp]
         else:
             trades = [parser(tr) for tr in resp if tr['orderId'] == order_id]
+        trades.sort(key=lambda x: x['timestamp'])
         return trades
+
+    def futures_get_position_pnl(self, symbol='BTCUSDT', order_id=None):
+        trades = self.futures_get_trades(symbol=symbol, order_id=order_id)
+        if order_id is None:
+            trades = [tr for tr in trades if tr['order_id'] == trades[-1]['order_id']]
+        r_pnl = sum([float(tr['realized_pnl']) for tr in trades])
+        u_pnl = float(self.futures_get_positions(symbol=symbol)['unrealizedProfit'])
+        return {'realized': r_pnl, 'unrealized': u_pnl}
 
     def futures_place_order(self, symbol, side, quantity, order_type='MARKET', price=None):
         kwargs = {
@@ -775,6 +791,15 @@ class BinanceAPI(ExchangeAPI):
         resp = self._external_client.futures_create_order(**kwargs)
         self.logger.info(resp)
         return resp['orderId']
+
+    def futures_change_initial_leverage(self, symbol, leverage):
+        kwargs = {
+            'symbol': symbol,
+            'leverage': leverage,
+        }
+        resp = self._external_client.futures_change_leverage(**kwargs)
+        self.logger.info(resp)
+        return resp
 
     def futures_cancel_order(self, symbol='BTCUSDT', order_id=None):
         raise NotImplementedError
