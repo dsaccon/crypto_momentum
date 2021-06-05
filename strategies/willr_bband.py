@@ -654,11 +654,13 @@ class LiveWillRBband(WillRBband):
 
         """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
+        trade_status = self.exchange.order_status(
+            symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
         netliq_before = self._get_netliq(bals=bals_before)
         bals_after = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         netliq_after = self._get_netliq(bals=bals_after)
         book_side = 'bids' if trade_status['side'] == 'BUY' else 'asks'
+        pnl = self.exchange.futures_get_position_pnl(symbol=symbol)['realized']
         ts_trade = str(trade_status['timestamp'])
         ts_trade = f'{ts_trade[:10]}.{ts_trade[10:]}'
         row = (
@@ -731,7 +733,8 @@ class LiveWillRBband(WillRBband):
         SNS_call(msg=(
             f"{ts_trade[:10]}: {self.cfg['symbol'][0]},"
             f" p: {round(trade_status['price'], round_to)}, {hurdle_str}"
-            f" s: {round(float(trade_status['quantity']), 5)}, {position_action},"
+            f" sz: {round(float(trade_status['quantity']), 5)}, {position_action},"
+            f" pnl: {round(pnl, 2)},"
             f" nl: {round(float(netliq_after), 2)}"))
 
     def _live_trade_size(self, params):
@@ -884,7 +887,12 @@ class LiveWillRBband(WillRBband):
             usdt_netliq = bals[self.cfg['symbol'][1]]
             return tkn_netliq + usdt_netliq
         elif self.cfg['asset_type'] == 'futures':
-            return self.exchange._futures_get_balances()['totalMarginBalance']
+            if self.cfg['futures_margin_type'] == 'usdt':
+                return self.exchange._futures_get_balances()['totalMarginBalance']
+            elif self.cfg['futures_margin_type'] == 'token':
+                raise NotImplementedError
+            else:
+                raise ValueError
 
     def _place_live_order(self, params):
         """
@@ -899,6 +907,7 @@ class LiveWillRBband(WillRBband):
         if self.cfg['asset_type'] == 'spot':
             order_id = self.exchange.place_order(symbol, params[4], size)
         elif self.cfg['asset_type'] == 'futures':
+            self.exchange.futures_change_initial_leverage(symbol, self.cfg['margin_level'])
             if params[2] == 'Open':
                 order_id = self.exchange.futures_place_order(symbol, params[4], size)
             elif params[2] == 'Close':
@@ -910,7 +919,8 @@ class LiveWillRBband(WillRBband):
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         accting_args = (order_id, bals, size, position_action, params[3], params[5])
         self._live_accounting(*accting_args)
-        order_status = self.exchange.order_status(symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
+        order_status = self.exchange.order_status(
+            symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
         self.last_order = (order_status, bals, size, position_action)
 
     def run(self):
