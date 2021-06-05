@@ -30,6 +30,19 @@ elif [ "$1" == --stop-all ]; then
 	sudo docker-compose down
 elif [ "$1" == --show-running ]; then
 	sudo docker ps --filter "name=ta_trader_"
+elif [ "$1" == --show-live-status ]; then
+    symbols=''
+	str=$(sudo docker ps --filter "name=ta_trader_" | grep ta_trader_)
+    for s in $str
+    do
+        s_filtered=$(echo $s | grep -v ta_trader_img)
+        if [[ "$s_filtered" == *"ta_trader_"* ]]; then
+            len_s=${#s_filtered}
+            tkn=${s:10:$len_s-1}
+            symbols="$symbols $tkn"
+        fi
+    done
+    python live_trader.py --live-status $symbols
 elif [ "$1" == --show-log ]; then
     tail -f logs/docker/$2/live_trader.log
 else
@@ -39,5 +52,6 @@ else
     echo '    --stop <token> '
     echo '    --stop-all '
     echo '    --show-running '
+    echo '    --show-live-status '
     echo '    --show-log <token> '
 fi
