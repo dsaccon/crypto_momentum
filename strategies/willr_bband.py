@@ -556,6 +556,7 @@ class LiveWillRBband(WillRBband):
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
+        self.trim_df = False
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
@@ -923,6 +924,23 @@ class LiveWillRBband(WillRBband):
             symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
         self.last_order = (order_status, bals, size, position_action)
 
+    def _trim_df(self):
+        """
+        Trim the dataframes to only the length needed to calc signals
+
+        """
+        lookback = max(
+            self.MAX_PERIODS[0]*self.cfg['series'][0][-1],
+            self.MAX_PERIODS[1]*self.cfg['series'][1][-1])
+        start_index = self.data[0].index[-1] - lookback
+        while True:
+            # Push back start_index to align on longer candle period
+            if start_index % self.cfg['series'][1][-1] == 0:
+                break
+            start_index -= self.cfg['series'][0][-1]
+        self.data[0] = self.data[0].loc[start_index:]
+        self.data[1] = self.data[1].loc[start_index:]
+
     def run(self):
         if self.cfg['floating_willr']:
             self._create_floating_ohlc()
@@ -951,6 +969,8 @@ class LiveWillRBband(WillRBband):
                     now = dt.datetime.utcnow().timestamp()
                     self.logger.info(f"{now}: {self.cfg['series'][1][1]} candle fetched")
 
+                if self.trim_df:
+                    self._trim_df()
                 if self.cfg['floating_willr']:
                     self._create_floating_ohlc()
                 self.preprocess_data()
@@ -970,4 +990,3 @@ class LiveWillRBband(WillRBband):
                     now = dt.datetime.utcnow().timestamp()
                     remaining = self.cfg['series'][0][2] - now % self.cfg['series'][0][2]
                     self.logger.debug(f"Next candle in {next_candle_secs()}s")
-
