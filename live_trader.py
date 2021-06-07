@@ -115,12 +115,14 @@ class LiveTrader(Base):
         return True
 
     def live_status(self, tokens):
+        print('Open positions (unrealized P&L):')
         for tkn in tokens:
             status = self.exchange_obj.futures_get_positions(symbol=f'{tkn}USDT')
             if not float(status['unrealizedProfit']) == 0:
-                print(f"{tkn}: {status['unrealizedProfit']}")
+                filler = ' '.join(['' for _ in range(7 - len(tkn))])
+                print(f"    {tkn}:{filler}${round(float(status['unrealizedProfit']), 2)}")
         desk_nl = self.exchange_obj._futures_get_balances()['totalMarginBalance']
-        print(f'Desk NL: {desk_nl}')
+        print(f'Desk NL:   ${round(float(desk_nl), 2)}')
 
     def run(self):
         if self.args.live_status:
