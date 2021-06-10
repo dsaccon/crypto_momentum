@@ -9,7 +9,7 @@ import importlib
 from dotenv import load_dotenv
 
 import strategies
-from backtester import Base, parse_args
+from backtester import Base
 
 
 class DataCollectionError(Exception):
@@ -35,56 +35,29 @@ class LiveTrader(Base):
         _end = dt.datetime.utcnow()
         self.end = (_end.year, _end.month, _end.day, _end.hour, _end.minute)
         self.end_ts = _end.timestamp()
-#        self.start_ts = int(dt.datetime.utcnow().timestamp()) - self.data_prefetch_period
         self.start_prefetch = dt.datetime.utcnow() - dt.timedelta(seconds=self.data_prefetch_period)
 
         self._align_first_row()
-#        longest_period = max([_[2] for _ in self.data_cfg])
-#        shortest_period = min([_[2] for _ in self.data_cfg])
-#        if not longest_period % shortest_period == 0:
-#            raise DataConfigurationError
-#
-#        while True:
-#            # Push back start ts until it lines up with both series' periods
-#            if self.start_ts % longest_period == 0:
-#                break
-#            else:
-#                self.start_ts -= 1
-#        self.start = dt.datetime.fromtimestamp(self.start_ts)
-#        self.start = (
-#            self.start.year,
-#            self.start.month,
-#            self.start.day,
-#            self.start.hour,
-#            self.start.minute)
         self.exchange_obj = self.exchange_cls(use_testnet=args.use_testnet)
 
-#    def _align_first_row(self):
-#        """
-#
-#        Make sure starting row aligns between both the longer and shorter series
-#
-#        """
-#
-#        longest_period = max([_[2] for _ in self.data_cfg])
-#        shortest_period = min([_[2] for _ in self.data_cfg])
-#        if not longest_period % shortest_period == 0:
-#            raise DataConfigurationError
-#        
-#        start_ts = int(self.start_prefetch.timestamp())
-#        while True:
-#            # Push back start ts until it lines up with both series' periods
-#            if start_ts % longest_period == 0:
-#                break
-#            else:
-#                start_ts -= 1
-#        start = dt.datetime.fromtimestamp(start_ts)
-#        self.start_prefetch = (
-#            start.year,
-#            start.month,
-#            start.day,
-#            start.hour,
-#            start.minute)
+        if self.args.debug:
+            if not os.path.exists(f'{self.path}/logs/debug/'):
+                os.mkdir(f'{self.path}/logs/debug/')
+
+    @staticmethod
+    def parse_args():
+        argp = Base.parse_args()
+        argp.add_argument(
+            "-l", "--live-status", type=str, default=None, nargs="*", help="Show open positions and desk netliq. Pass in list of tokens. For live trading only"
+        )
+        argp.add_argument(
+            "-c", "--close-position", type=str, default=None, nargs="*", help=""
+        )
+        argp.add_argument(
+            "-d", "--debug", action='store_true', help="Debug mode. Print tables to csvs in logs/debug/ folder"
+        )
+        args = argp.parse_args()
+        return args
 
     def get_data(self):
         # Fetch data from exchange
@@ -114,25 +87,44 @@ class LiveTrader(Base):
 
         return True
 
-    def live_status(self, tokens):
+    def show_positions_nl(self, tokens):
         print('Open positions (unrealized P&L):')
+        filler = None
         for tkn in tokens:
-            status = self.exchange_obj.futures_get_positions(symbol=f'{tkn}USDT')
-            if not float(status['unrealizedProfit']) == 0:
+            positions = self.exchange_obj.futures_get_positions(symbol=f'{tkn}USDT')
+            if not float(positions['unrealizedProfit']) == 0:
                 filler = ' '.join(['' for _ in range(7 - len(tkn))])
-                print(f"    {tkn}:{filler}${round(float(status['unrealizedProfit']), 2)}")
+                print(f"    {tkn}:{filler}${round(float(positions['unrealizedProfit']), 2)}")
+        if filler is None:
+            print('    None')
         desk_nl = self.exchange_obj._futures_get_balances()['totalMarginBalance']
         print(f'Desk NL:   ${round(float(desk_nl), 2)}')
 
+    def close_positions(self, tokens):
+        for tkn in tokens:
+            symb = f'{tkn}USDT'
+            posn = self.exchange_obj.futures_get_positions(symbol=symb)
+            if float(posn['positionAmt']) > 0:
+                print(f'{tkn} - Closing position')
+                self.exchange_obj.futures_close_position(symbol=symb)
+            else:
+                print(f'{tkn} - No position was open')
+
     def run(self):
-        if self.args.live_status:
-            self.live_status(self.args.live_status)
+        if not self.args.live_status is None:
+            self.show_positions_nl(self.args.live_status)
             return
+        if not self.args.close_position is None:
+            self.close_positions(self.args.close_position)
+            return
+        #
         if self.get_data():
             data = self.df
         else:
             raise DataCollectionError
-        self.strategy(self.df, self.exchange_obj, self.trading_cfg).run()
+        self.strategy(
+            self.df, self.exchange_obj,
+            self.trading_cfg, debug=self.args.debug).run()
 
 
 def test_setup():
@@ -150,8 +142,8 @@ def test_setup():
 
 if __name__ == '__main__':
     load_dotenv()
-    args = parse_args()
-    if not args.live_status:
+    args = LiveTrader.parse_args()
+    if args.live_status is None and args.close_position is None:
         logfile = 'logs/live_trader.log'
         print(f'Running live trader app, check logs at {logfile}')
         if not os.path.isdir('logs/'):
