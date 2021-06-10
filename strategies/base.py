@@ -20,7 +20,7 @@ class BacktestingBaseClass:
 	'<': operator.lt,
     }
 
-    def __init__(self, data, exch_obj, cfg, bt_start=None):
+    def __init__(self, data, exch_obj, cfg, bt_start=None, debug=False):
         self.execution_mode = None # 'backtest' or 'live'
         self.data = data
         self.exchange = exch_obj
@@ -43,6 +43,7 @@ class BacktestingBaseClass:
         self.logger = logging.getLogger(__name__)
         self.start_time = int(dt.datetime.utcnow().timestamp())
         self.s3_bkt_name = os.environ.get('S3_BUCKET_NAME')
+        self.debug = debug
 
     def preprocess_data(self):
         # Add new cols to dataframe necessary to do calcs in run()
