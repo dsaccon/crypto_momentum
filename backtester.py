@@ -31,7 +31,7 @@ class Base:
         self.run_name = args.name
         self.path = '/'.join(os.path.abspath(__file__).split('/')[:-1])
 
-        self.data_prefetch_period = 10*86400
+        self.data_prefetch_period = 15*86400
 
         self._load_config()
 
@@ -68,16 +68,6 @@ class Base:
                 i = 2
             _cfg.append(int(_cfg[1][:-i])*_mult)
         self.trading_cfg['series'] = self.data_cfg
-
-        self.start = tuple(args.start) if args.start else self.start
-#        self.start_ts = int(dt.datetime(*self.start).timestamp())
-        self.start_prefetch = dt.datetime(*self.start) - dt.timedelta(seconds=self.data_prefetch_period)
-        self._align_first_row()
-
-        if args.end is not False:
-            self.end = tuple(args.end) if args.end else args.end
-            if self.end:
-                self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
 
         self.df_expected_cols = ['datetime', 'open', 'high', 'low', 'close']
         self.df = []
@@ -130,17 +120,9 @@ class Base:
             else:
                 start_ts -= 1
         self.start_prefetch = dt.datetime.fromtimestamp(start_ts)
-#        self.start_prefetch = (
-#            start.year,
-#            start.month,
-#            start.day,
-#            start.hour,
-#            start.minute)
 
     def _get_data_api(self, period, start=None):
         df_list = []
-#        self.start = self.start + tuple([0 for i in range(len(self.start), 5)])
-#        start_dt = dt.datetime(*self.start)
         start_dt = self.start_prefetch
         if self.end is None:
             end_dt = None
@@ -239,7 +221,63 @@ class Base:
         latest = 'latest_bt_df.csv'
         self.df[i][self.df_expected_cols[1:]].to_csv(f'{self.path}/logs/{latest}')
 
+    @staticmethod
+    def parse_args():
+        argp = argparse.ArgumentParser()
+        argp.add_argument(
+            "-n", "--name", type=str, default='WillRBbandEvo_BTC_3m_60m', help="Settings name from config file"
+        )
+        argp.add_argument(
+            "-e", "--exchange", type=str, default=None, help="Exchange"
+        )
+        argp.add_argument(
+            "-s", "--strategy", type=str, default=None, help="Strategy name"
+        )
+        argp.add_argument(
+            "-i", "--symbol", "--instrument", type=str, default=None, help="Instrument symbol"
+        )
+        argp.add_argument(
+            "-a", "--asset-type", type=str, default=None, help="Asset type (spot, futures)"
+        )
+        argp.add_argument(
+            "-p", "--period", type=str, default=None, nargs="*", help="Candle period"
+        )
+        argp.add_argument(
+            "--num-periods", type=int, default=None, nargs="*", help="Number of periods"
+        )
+        argp.add_argument(
+            "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data folder. For backtesting only"
+        )
+        argp.add_argument(
+            "-t", "--use-testnet", action='store_true', help="Set to False to run on live account. For live trading only"
+        )
+
+        return argp
+
 class Backtest(Base):
+    def __init__(self, args):
+        super().__init__(args)
+
+        self.start = tuple(args.start) if args.start else self.start
+        self.start_prefetch = dt.datetime(*self.start) - dt.timedelta(seconds=self.data_prefetch_period)
+        self._align_first_row()
+
+        if args.end is not False:
+            self.end = tuple(args.end) if args.end else args.end
+            if self.end:
+                self.end_ts = str(int(dt.datetime(*self.end).timestamp()))
+
+    @staticmethod
+    def parse_args():
+        argp = Base.parse_args()
+        argp.add_argument(
+            "--start", type=int, default=None, nargs='*', help="Start of period. For backtesting only"
+        )
+        argp.add_argument(
+            "--end", type=int, default=False, nargs='*', help="End of period. For backtesting only"
+        )
+        args = argp.parse_args()
+        return args
 
     def _get_data_csv(self):
         for f in self.csv_file:
@@ -258,7 +296,6 @@ class Backtest(Base):
                 #print('Something not right with datetime values')
                 logging.info('Something not right with datetime values')
                 raise ValueError
-#            dt_col = self.df[-1]['datetime']/1000
             self.df[-1]['datetime'] = dt_col.astype(int)
             self.df[-1] = self.df[-1].set_index(['datetime'], verify_integrity=True)
 
@@ -270,10 +307,7 @@ class Backtest(Base):
                     return False
         else:
             if not len(self.data_cfg) == len(self.csv_file):
-                #print(f'Number of csv files provided should be {len(self.data_cfg)}')
                 logging.info(f'Number of csv files provided should be {len(self.data_cfg)}')
-                #print(self.data_cfg)
-                #print(self.csv_file)
                 logging.info(self.data_cfg)
                 logging.info(self.csv_file)
                 raise ValueError
@@ -344,49 +378,6 @@ class Backtest(Base):
         print('number of trades:', len(back[0].analyzers.trans.get_analysis()))
         cerebro.plot()
 
-
-def parse_args():
-    argp = argparse.ArgumentParser()
-    argp.add_argument(
-        "-n", "--name", type=str, default='WillRBbandEvo_BTC_3m_60m', help="Settings name from config file"
-    )
-    argp.add_argument(
-        "-e", "--exchange", type=str, default=None, help="Exchange"
-    )
-    argp.add_argument(
-        "-s", "--strategy", type=str, default=None, help="Strategy name"
-    )
-    argp.add_argument(
-        "-i", "--symbol", "--instrument", type=str, default=None, help="Instrument symbol"
-    )
-    argp.add_argument(
-        "--start", type=int, default=None, nargs='*', help="Start of period. For backtesting only"
-    )
-    argp.add_argument(
-        "--end", type=int, default=False, nargs='*', help="End of period. For backtesting only"
-    )
-    argp.add_argument(
-        "-l", "--live-status", type=str, default=None, nargs="*", help="Show position status. Pass in list of tokens. For live trading only"
-    )
-    argp.add_argument(
-        "-a", "--asset-type", type=str, default=None, help="Asset type (spot, futures)"
-    )
-    argp.add_argument(
-        "-p", "--period", type=str, default=None, nargs="*", help="Candle period"
-    )
-    argp.add_argument(
-        "--num-periods", type=int, default=None, nargs="*", help="Number of periods"
-    )
-    argp.add_argument(
-        "-f", "--file", "--files", type=str, default=None, nargs='*', help="Filename(s) within data folder. For backtesting only"
-    )
-    argp.add_argument(
-        "-t", "--use-testnet", action='store_true', help="Set to False to run on live account. For live trading only"
-    )
-
-    args = argp.parse_args()
-    return args
-
 def test_setup():
     args = Object()
     args.name = 'WillRBband_BTC_3m_60m'
@@ -406,5 +397,5 @@ if __name__ == '__main__':
         os.mkdir('logs')
     logging.basicConfig(filename=logfile, level=logging.INFO)
     logging.info(f'{int(dt.datetime.utcnow().timestamp())}: Starting backtester')
-    args = parse_args()
+    args = Backtest.parse_args()
     Backtest(args).run()
