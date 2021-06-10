@@ -43,15 +43,21 @@ elif [ "$1" == --show-live-status ]; then
         fi
     done
     python live_trader.py --live-status $symbols
+elif [ "$1" == --close-position ]; then
+    args=$@
+    len_args=${#args}
+    _args=${args:17:$len_args}
+    python live_trader.py --close-position $_args
 elif [ "$1" == --show-log ]; then
     tail -f logs/docker/$2/live_trader.log
 else
     echo 'Manage per-token trader instances. Options:'
-    echo '    --start <token> '
-    echo '    --start <token> --build '
-    echo '    --stop <token> '
-    echo '    --stop-all '
-    echo '    --show-running '
-    echo '    --show-live-status '
-    echo '    --show-log <token> '
+    echo '    --start <token>                       (Start token, will restart if already running)'
+    echo '    --start <token> --build               (Start token, build first (i.e. include any recent changes)'
+    echo '    --stop <token>                        (Stop token)'
+    echo '    --stop-all                            (Stop all running tokens)'
+    echo '    --show-running                        (Show all running tokens)'
+    echo '    --show-live-status                    (Show uPNL of any open positions, and desk NL'
+    echo '    --close-position <token> ... <token>  (Close token position, if open)'
+    echo '    --show-log <token>                    (Show live trader log)'
 fi
