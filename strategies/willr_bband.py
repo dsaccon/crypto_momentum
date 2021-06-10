@@ -145,7 +145,8 @@ class WillRBband(BacktestingBaseClass):
             else:
                 offset = offset_end - offset_beg
             floating_series = self._resample_floating_candles(offset=offset)
-#            floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
+            if self.debug:
+                floating_series.to_csv(f'logs/debug/3.floating_60m_{_i}.csv')
             willr[_i] = btalib.willr(
                 floating_series[f'high_{tag}'],
                 floating_series[f'low_{tag}'],
@@ -155,9 +156,10 @@ class WillRBband(BacktestingBaseClass):
             willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
             willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
 
-#        for _i in range(num_intervals): ###
-#            willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
-#            willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
+        if self.debug:
+            for _i in range(num_intervals):
+                willr[_i].to_csv(f'logs/debug/4.willr_{_i}.csv')
+                willr_ema[_i].to_csv(f'logs/debug/4.willr_ema_{_i}.csv')
 
         # Combine & interleave each longer-interval willr series to a shorter-interval df
         _willr = pd.concat([w for w in willr], sort=True)
@@ -172,7 +174,8 @@ class WillRBband(BacktestingBaseClass):
         _willr_ema.set_index('timestamp', inplace=True)
         self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
         self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
-#        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
+        if self.debug:
+            self.data[0].to_csv(f'logs/debug/5.done.csv')
 
     def _create_floating_ohlc(self):
         """
@@ -204,7 +207,8 @@ class WillRBband(BacktestingBaseClass):
         self.data[0][f'low_{tag}'] = pd.Series()
         self.data[0][f'close_{tag}'] = pd.Series()
         self.data[0]['Datetime'] = pd.to_datetime(self.data[0].index, unit='s')
-#        self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
+        if self.debug:
+            self.data[0].to_csv('logs/debug/1.orig_data.csv')
         first_row_ts = self.data[0].index[0]
         for i, row in self.data[0].iterrows():
             i_start = i - period_long + period_short
@@ -215,7 +219,8 @@ class WillRBband(BacktestingBaseClass):
             self.data[0].at[i, f'high_{tag}'] = self.data[0].loc[i_start:i_end]['high'].max()
             self.data[0].at[i, f'low_{tag}'] = self.data[0].loc[i_start:i_end]['low'].min()
             self.data[0].at[i, f'close_{tag}'] = self.data[0].loc[i_end]['close']
-#        self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
+        if self.debug:
+            self.data[0].to_csv('logs/debug/2.floating_ohlc.csv')
 
     def _resample_floating_candles(self, offset=0):
         """
@@ -544,7 +549,7 @@ class WillRBband(BacktestingBaseClass):
 
 class LiveWillRBband(WillRBband):
 
-    MAX_PERIODS = (20, 14 + 43) # Corresponding to (3m, 60m) data series
+    MAX_PERIODS = (20, 14 + 43 + 1) # Corresponding to (3m, 60m) data series
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -556,7 +561,7 @@ class LiveWillRBband(WillRBband):
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
-        self.trim_df = False
+        self.trim_df = True
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
@@ -939,7 +944,7 @@ class LiveWillRBband(WillRBband):
                 break
             start_index -= self.cfg['series'][0][-1]
         self.data[0] = self.data[0].loc[start_index:]
-        self.data[1] = self.data[1].loc[start_index:]
+        #self.data[1] = self.data[1].loc[start_index:]
 
     def run(self):
         if self.cfg['floating_willr']:
@@ -959,6 +964,9 @@ class LiveWillRBband(WillRBband):
         next_candle_secs = lambda: int(
             self.cfg['series'][0][2] - (
                 dt.datetime.utcnow().timestamp() % self.cfg['series'][0][2]))
+
+        if self.debug:
+            self.data[0].to_csv(f'logs/debug/live_table.csv')
 
         while True:
             # Periodically update candles from API
@@ -983,7 +991,8 @@ class LiveWillRBband(WillRBband):
                 self.logger.info(f'{dt.datetime.utcnow().timestamp()}:New row:\n{row}')
                 self._on_new_candle(row)
                 self.logger.info(f"Next candle in {next_candle_secs()}s")
-                self.data[0].to_csv(f'logs/live_table.csv') ### tmp
+                if self.debug:
+                    self.data[0].to_csv(f'logs/debug/live_table.csv')
             else:
                 time.sleep(1)
                 if int(str(int(dt.datetime.utcnow().timestamp()))[-1]) % 9 == 0:
