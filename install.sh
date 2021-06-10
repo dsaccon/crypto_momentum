@@ -26,7 +26,12 @@ elif [ "$OS" == 'Linux' ]; then
         install_talib ''
     else
         sudo apt update
-        sudo apt install -y pipenv
+
+        sudo apt install python3-pip -y
+        pip3 install --user pipenv
+        _DIR=`python3 -m site --user-base`
+        export PATH=$_DIR/bin:$PATH
+
         sudo apt install -y software-properties-common
         sudo add-apt-repository ppa:deadsnakes/ppa
         sudo apt install -y python3.9
