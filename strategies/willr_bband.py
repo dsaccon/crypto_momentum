@@ -561,7 +561,7 @@ class LiveWillRBband(WillRBband):
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
-        self.trim_df = True
+        self.trim_df = False
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
