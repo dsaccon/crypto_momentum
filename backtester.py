@@ -276,6 +276,9 @@ class Backtest(Base):
         argp.add_argument(
             "--end", type=int, default=False, nargs='*', help="End of period. For backtesting only"
         )
+        argp.add_argument(
+            "-d", "--debug", action='store_true', help="Debug mode. Print tables to csvs in logs/debug/ folder"
+        )
         args = argp.parse_args()
         return args
 
