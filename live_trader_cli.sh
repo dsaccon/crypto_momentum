@@ -32,7 +32,7 @@ elif [ "$1" == --show-running ]; then
 	sudo docker ps --filter "name=ta_trader_"
 elif [ "$1" == --show-live-status ]; then
     symbols=''
-	str=$(sudo docker ps --filter "name=ta_trader_" | grep ta_trader_)
+	str=$(sudo docker ps -a --filter "name=ta_trader_" | grep ta_trader_)
     for s in $str
     do
         s_filtered=$(echo $s | grep -v ta_trader_img)
