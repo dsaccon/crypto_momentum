@@ -751,12 +751,20 @@ class BinanceAPI(ExchangeAPI):
             return resp['positions']
 
     @meta(wait=1)
-    def _futures_get_positions(self):
+    def _futures_get_positions(self, symbol=None, filter_zero=False):
         """
         WIP. Gives slightly different info than from futures_get_positions()
         """
         resp = self._external_client.futures_position_information()
-        return resp
+        if symbol:
+            return [s for s in resp if s['symbol'] == symbol]
+        else:
+            if filter_zero:
+                return [
+                    r for r in resp
+                    if not float(r['positionAmt']) == 0
+                ]
+            return resp
 
     @meta(wait=1)
     def futures_get_trades(self, symbol='BTCUSDT', order_id=None):
