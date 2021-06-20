@@ -91,10 +91,11 @@ class LiveTrader(Base):
         print('Open positions (unrealized P&L):')
         filler = None
         for tkn in tokens:
-            positions = self.exchange_obj.futures_get_positions(symbol=f'{tkn}USDT')
-            if not float(positions['unrealizedProfit']) == 0:
+            position = self.exchange_obj.futures_get_positions(symbol=f'{tkn}USDT')
+            if not float(position['unrealizedProfit']) == 0:
+                side = 'Long' if float(position['positionAmt']) > 0 else 'Short'
                 filler = ' '.join(['' for _ in range(7 - len(tkn))])
-                print(f"    {tkn}:{filler}${round(float(positions['unrealizedProfit']), 2)}")
+                print(f"    {tkn}:{filler}${round(float(position['unrealizedProfit']), 2)} ({side})")
         if filler is None:
             print('    None')
         desk_nl = self.exchange_obj._futures_get_balances()['totalMarginBalance']
