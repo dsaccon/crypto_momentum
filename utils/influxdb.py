@@ -2,6 +2,7 @@ import os
 import decimal as d
 import datetime as dt
 import random
+import logging
 from typing import Dict, List
 
 from influxdb import InfluxDBClient as _InfluxDBClient
@@ -19,6 +20,7 @@ class InfluxDBClient:
             os.environ['INFLUXDB_PW'],
             db,
         )
+        self.logger = logging.getLogger(__name__)
 
     def create_db(self, db_name):
         self.client.create_database(db_name)
@@ -47,7 +49,7 @@ class InfluxDBClient:
                     'fee_asset': row[13],
                 },
                 'fields': {
-                    'time_trade': row[0],
+                    'time_trade_flt': row[0],
                     'time_candle': row[1],
                     'size': row[5],
                     'filled': row[6],
@@ -66,4 +68,8 @@ class InfluxDBClient:
                 }
             }
         ]
-        self.client.write_points(json_body)
+        try:
+            self.logger.info(f'Writing influxdb measurement: {json_body}')
+            self.client.write_points(json_body)
+        except influxdb.exceptions.InfluxDBClientError as e:
+            self.logger.critical(e)
