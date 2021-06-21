@@ -4,7 +4,8 @@ def book_query(
         side='BUY',
         asset_type='spot',
         target_pct=1,
-        client=None) -> tuple:
+        client=None,
+        return_book=False) -> tuple:
     """
     Return:
 
@@ -44,7 +45,9 @@ def book_query(
     avg_price = sum([_[0]*_[1] for _ in accum])/target_vol
     slip = abs(float(book[_side][0][0]) - avg_price)
     slip_pct = (slip/float(book[_side][0][0]))*100
-    results = (get_accum_vol(accum), book[_side][0][0], avg_price, slip_pct)
+    results = (get_accum_vol(accum), float(book[_side][0][0]), avg_price, slip_pct)
+    if return_book:
+        results = results + (book,)
     if slip_pct < target_pct:
         return (True,) + results
     else:
@@ -53,5 +56,5 @@ def book_query(
 if __name__ == '__main__':
     from exchanges.binance import BinanceAPI
     client = BinanceAPI()
-    result = book_query('LTCUSDT', 10000, side='BUY', asset_type='futures', client=client)
+    result = book_query('LTCUSDT', 20000, side='BUY', asset_type='futures', client=client, return_book=True)
     print(result)
