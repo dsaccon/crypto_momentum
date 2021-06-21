@@ -73,6 +73,42 @@ services:
         - INFLUXDB_USER=${INFLUXDB_USER}
         - INFLUXDB_PW=${INFLUXDB_PW}
 
+  ta_trader_BTC:
+    build: .
+    image: ta_trader_img
+    container_name: ta_trader_BTC
+    entrypoint: python live_trader.py -n WillRBband_BTC_3m_60m
+    networks:
+      - net
+    volumes:
+      - ./logs/docker/BTC/:/crypto_momentum/logs
+    environment:
+        - BINANCE_KEY=${BINANCE_KEY}
+        - BINANCE_SECRET=${BINANCE_SECRET}
+        - AWS_SNS_KEY=${AWS_SNS_KEY}
+        - AWS_SNS_SECRET=${AWS_SNS_SECRET}
+        - INFLUXDB_ADDR=${INFLUXDB_ADDR}
+        - INFLUXDB_USER=${INFLUXDB_USER}
+        - INFLUXDB_PW=${INFLUXDB_PW}
+
+  ta_trader_ONT:
+    build: .
+    image: ta_trader_img
+    container_name: ta_trader_ONT
+    entrypoint: python live_trader.py -n WillRBband_ONT_3m_60m
+    networks:
+      - net
+    volumes:
+      - ./logs/docker/ONT/:/crypto_momentum/logs
+    environment:
+        - BINANCE_KEY=${BINANCE_KEY}
+        - BINANCE_SECRET=${BINANCE_SECRET}
+        - AWS_SNS_KEY=${AWS_SNS_KEY}
+        - AWS_SNS_SECRET=${AWS_SNS_SECRET}
+        - INFLUXDB_ADDR=${INFLUXDB_ADDR}
+        - INFLUXDB_USER=${INFLUXDB_USER}
+        - INFLUXDB_PW=${INFLUXDB_PW}
+
 networks:
    net:
        driver: bridge
