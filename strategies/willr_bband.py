@@ -15,6 +15,7 @@ from utils.s3 import write_s3
 from .base import BacktestingBaseClass
 
 from utils.sns import SNS_call
+from utils.analytics import book_query
 
 
 class ApplicationStateError(Exception):
@@ -670,7 +671,7 @@ class LiveWillRBband(WillRBband):
         ts_trade = str(trade_status['timestamp'])
         ts_trade = f'{ts_trade[:10]}.{ts_trade[10:]}'
         row = (
-            ts_trade,
+            float(ts_trade),
             self.data[0].index[-1],
             trade_status['symbol'],
             trade_status['side'],
@@ -899,6 +900,39 @@ class LiveWillRBband(WillRBband):
                 raise NotImplementedError
             else:
                 raise ValueError
+
+    def _live_pre_check(self, side, target_slpg=None, target_size=None):
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        ob_snapshot = None
+        ob_avg_price = None
+        if self.cfg['asset_type'] == 'spot':
+            raise NotImplementedError
+        elif self.cfg['asset_type'] == 'futures':
+            slpg_chk = False
+            bals_chk = False
+            if not target_slpg is None:
+                bq_results = book_query(
+                    symbol, self.cfg['max_trade_size'], side=side,
+                    asset_type='futures', client=self.exchange, return_book=True)
+                ob_snapshot = bq_results[5]
+                ob_avg_price = bq_results[3]
+                if bq_results[0] and bq_results[4] < target_slpg:
+                    slpg_chk = True
+            if not target_size is None:
+                if ob_snapshot is None:
+                    ob_snapshot = self.exchange.get_book(
+                        symbol=symbol, depth=100, asset_type='futures')
+                if ob_avg_price is None:
+                    if side == 'BUY':
+                        _side = 'bids'
+                    elif side == 'SELL':
+                        _side = 'asks'
+                    ob_avg_price = float(ob_snapshot[_side][0][0])
+                margin_bal = float(
+                    self.exchange._futures_get_balances()['totalMarginBalance'])
+                if margin_bal > target_size*ob_avg_price:
+                    bals_chk = True
+        return slpg_chk, bals_chk
 
     def _place_live_order(self, params):
         """
