@@ -720,22 +720,26 @@ class BinanceAPI(ExchangeAPI):
         return self.futures_close_position()
 
     def futures_close_position(self, symbol=None):
+        def close_position(sbl):
+            position = self.futures_get_positions(symbol=sbl)
+            side = 'BUY' if float(position['positionAmt']) < 0 else 'SELL'
+            quantity = position['positionAmt']
+            quantity = quantity[1:] if quantity[0] == '-' else quantity
+            order_id = self.futures_place_order(sbl, side, quantity)
+            return order_id
         if symbol is None:
             positions = self.futures_get_positions(filter_zero=True)
             symbols = []
             for position in positions:
                 symbols.append(position['symbol'])
+            order_ids = []
+            for _symbol in symbols:
+                order_id = close_position(_symbol)
+                order_ids.append(order_id)
+            return order_ids
         else:
-            symbols = [symbol]
-        order_ids = []
-        for _symbol in symbols:
-            position = self.futures_get_positions(symbol=_symbol)
-            side = 'BUY' if float(position['positionAmt']) < 0 else 'SELL'
-            quantity = position['positionAmt']
-            quantity = quantity[1:] if quantity[0] == '-' else quantity
-            order_id = self.futures_place_order(_symbol, side, quantity)
-            order_ids.append(order_id)
-        return order_ids
+            order_id = close_position(symbol)
+            return order_id
 
     @meta(wait=1)
     def futures_get_positions(self, symbol=None, filter_zero=False):
