@@ -21,6 +21,7 @@ def book_query(
     _side = 'asks' if side == 'BUY' else 'bids'
     book_levels = (100, 500, 1000, 5000) # Binance-specific
     get_accum_vol = lambda a: sum([_[1] for _ in a])
+    diff = lambda a, b: True if abs(a-b) < 0.00001 else False
     for book_level in book_levels:
         #
         book = client.get_book(symbol=symbol, depth=book_level, asset_type=asset_type)
@@ -33,7 +34,7 @@ def book_query(
                 pre_trim_vol = get_accum_vol(accum)
                 accum[-1] = (accum[-1][0], accum[-1][1] - trim)
                 break
-        if get_accum_vol(accum) >= target_vol:
+        if get_accum_vol(accum) >= target_vol or diff(get_accum_vol(accum), target_vol):
             # Current book has sufficient vol
             break
         elif book_level == book_levels[-1]:
