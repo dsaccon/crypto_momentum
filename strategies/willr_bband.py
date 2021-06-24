@@ -902,6 +902,22 @@ class LiveWillRBband(WillRBband):
                 raise ValueError
 
     def _live_pre_check(self, side, target_slpg=None, target_size=None):
+        """
+        Check of OB depth and account bals
+
+        Run this prior to order execution to make sure conditions are suffice
+
+		Arguments
+		---------
+		side (str):         '   BUY' or 'SELL'
+        target_slpg (flt):      Desired slippage (in %), at which check will fail
+        target_size (flt):      Order size (in token), ""
+
+		Returns
+		---------
+		(bool, bool) (tuple):   target_slpg, target_size check results
+
+        """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
         ob_snapshot = None
         ob_avg_price = None
