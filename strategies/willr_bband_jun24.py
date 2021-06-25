@@ -12,10 +12,10 @@ from utils.influxdb import InfluxDBClient
 import btalib
 
 from utils.s3 import write_s3
-
 from .base import BacktestingBaseClass
 
 from utils.sns import SNS_call
+from utils.analytics import book_query
 
 
 class ApplicationStateError(Exception):
@@ -37,7 +37,6 @@ class WillRBband(BacktestingBaseClass):
         self.position_open_state = False # Vals: 'long_open', 'short_open', False
         self._on_new_candle = getattr(self, self.cfg['execution_name'])
         self.influxdb_client = InfluxDBClient()
-        self.long_stop_profit = self.short_stop_profit = False # for stop profit functions
 
     def _backtesting_tradelog_setup(self):
         cols = (
@@ -51,9 +50,6 @@ class WillRBband(BacktestingBaseClass):
         bt_params = ' asset_type:' + self.cfg['asset_type'] + \
                     ' strategy:'   + self.cfg['strategy'] + \
                     ' execution_name:' + self.cfg['execution_name'] + \
-                    ' willr_ema_per:' + str(self.cfg['willr_ema_period']) + \
-                    ' bband_per:' + str(self.cfg['bband_period']) + \
-                    ' bband_devs:' + str(self.cfg['bband_devs']) + \
                     ' floating_willr:' + str(self.cfg['floating_willr']) + \
                     ' ENTRY PARAMS:' + \
                     ' willr_diff_threshold:' + str(self.cfg['willrema_diff_threshold']) + \
@@ -61,9 +57,7 @@ class WillRBband(BacktestingBaseClass):
                     ' willrEMA_short_entry:' + str(self.cfg['willrema_short_entry']) + \
                     ' willr_long_entry:' + str(self.cfg['willr_long_entry']) + \
                     ' willr_short_entry:' + str(self.cfg['willr_short_entry']) + \
-                    ' bband_entry:' + str(self.cfg['bband_entry']) + \
                     ' stoploss:' + str(self.cfg['stoploss']) + \
-                    ' takeprofit' + str(self.cfg['takeprofit']) + \
                     ' timestop:' + str(self.cfg['timestop'])
 
         symbol = symbol + bt_params
@@ -103,9 +97,9 @@ class WillRBband(BacktestingBaseClass):
 
         # ..load 3m data
         i = 0
-        self.data[i]['bband_20_low'] = btalib.bbands(self.data[i]['close'], period = self.cfg['bband_period'], devs = self.cfg['bband_devs']).bot
+        self.data[i]['bband_20_low'] = btalib.bbands(self.data[i]['close'], period = 20, devs = 2.3).bot
         self.data[i]['bband_20_low_prev'] = self.data[i]['bband_20_low'].shift(1)
-        self.data[i]['bband_20_high'] = btalib.bbands(self.data[i]['close'], period = self.cfg['bband_period'], devs = self.cfg['bband_devs']).top
+        self.data[i]['bband_20_high'] = btalib.bbands(self.data[i]['close'], period = 20, devs = 2.3).top
         self.data[i]['bband_20_high_prev'] = self.data[i]['bband_20_high'].shift(1)
         self.data[i]['close_prev'] = self.data[i]['close'].shift(1)
 
@@ -154,19 +148,21 @@ class WillRBband(BacktestingBaseClass):
             else:
                 offset = offset_end - offset_beg
             floating_series = self._resample_floating_candles(offset=offset)
-#            floating_series.to_csv(f'logs/floating/3.floating_60m_{_i}.csv') ### tmp
+            if self.debug:
+                floating_series.to_csv(f'logs/debug/3.floating_60m_{_i}.csv')
             willr[_i] = btalib.willr(
                 floating_series[f'high_{tag}'],
                 floating_series[f'low_{tag}'],
                 floating_series[f'close_{tag}'],
                 period = 14).df
             willr[_i].rename(columns = {'r': 'willr'}, inplace = True)
-            willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = self.cfg['willr_ema_period'], _seed = 3).df
+            willr_ema[_i] = btalib.ema(willr[_i]['willr'], period = 43, _seed = 3).df
             willr_ema[_i].rename(columns = {'ema': 'willr_ema'}, inplace = True)
 
-#        for _i in range(num_intervals): ###
-#            willr[_i].to_csv(f'logs/floating/4.willr_{_i}.csv') ### tmp
-#            willr_ema[_i].to_csv(f'logs/floating/4.willr_ema_{_i}.csv') ### tmp
+        if self.debug:
+            for _i in range(num_intervals):
+                willr[_i].to_csv(f'logs/debug/4.willr_{_i}.csv')
+                willr_ema[_i].to_csv(f'logs/debug/4.willr_ema_{_i}.csv')
 
         # Combine & interleave each longer-interval willr series to a shorter-interval df
         _willr = pd.concat([w for w in willr], sort=True)
@@ -181,7 +177,8 @@ class WillRBband(BacktestingBaseClass):
         _willr_ema.set_index('timestamp', inplace=True)
         self.data[0][f'willr_ema_{tag}'] = _willr_ema.willr_ema
         self.data[0][f'willr_ema_prev_{tag}'] = self.data[0][f'willr_ema_{tag}'].shift(num_intervals)
-#        self.data[0].to_csv(f'logs/floating/5.done.csv') ### tmp
+        if self.debug:
+            self.data[0].to_csv(f'logs/debug/5.done.csv')
 
     def _create_floating_ohlc(self):
         """
@@ -213,7 +210,8 @@ class WillRBband(BacktestingBaseClass):
         self.data[0][f'low_{tag}'] = pd.Series()
         self.data[0][f'close_{tag}'] = pd.Series()
         self.data[0]['Datetime'] = pd.to_datetime(self.data[0].index, unit='s')
-#        self.data[0].to_csv('logs/floating/1.orig_data.csv') ### tmp
+        if self.debug:
+            self.data[0].to_csv('logs/debug/1.orig_data.csv')
         first_row_ts = self.data[0].index[0]
         for i, row in self.data[0].iterrows():
             i_start = i - period_long + period_short
@@ -224,7 +222,8 @@ class WillRBband(BacktestingBaseClass):
             self.data[0].at[i, f'high_{tag}'] = self.data[0].loc[i_start:i_end]['high'].max()
             self.data[0].at[i, f'low_{tag}'] = self.data[0].loc[i_start:i_end]['low'].min()
             self.data[0].at[i, f'close_{tag}'] = self.data[0].loc[i_end]['close']
-#        self.data[0].to_csv('logs/floating/2.floating_ohlc.csv') ### tmp
+        if self.debug:
+            self.data[0].to_csv('logs/debug/2.floating_ohlc.csv')
 
     def _resample_floating_candles(self, offset=0):
         """
@@ -455,7 +454,7 @@ class WillRBband(BacktestingBaseClass):
                 settings = (row['datetime'], 'Long', 'Open', row['close'])
                 self._execute_trade(settings)
         elif self.position > 0:
-            if (row[self.cross_buy_close_col] or
+            if (row[self.cross_buy_close_col] or 
                (stoploss > 0 and row['close'] < self.open_price*(1-stoploss)) or  #stoploss
                ((row['datetime'] - self.time_opened) > timestop)): #timestop
                 # Long close
@@ -473,7 +472,7 @@ class WillRBband(BacktestingBaseClass):
                 settings = (row['datetime'], 'Short', 'Open', row['close'])
                 self._execute_trade(settings)
         elif self.position < 0:
-            if (row[self.cross_sell_close_col] or
+            if (row[self.cross_sell_close_col] or 
                (stoploss > 0 and row['close'] > self.open_price*(1+stoploss)) or  #stoploss
                ((row['datetime'] - self.time_opened) > timestop)): #timestop
                 # Short close
@@ -551,11 +550,9 @@ class WillRBband(BacktestingBaseClass):
 #        write_s3('logs/backtester.log', bkt=self.s3_bkt_name)
 #        write_s3(plt_file, bkt=self.s3_bkt_name)
 
-        self.table_to_postgres()
-
 class LiveWillRBband(WillRBband):
 
-    MAX_PERIODS = (20, 14 + 43) # Corresponding to (3m, 60m) data series
+    MAX_PERIODS = (20, 14 + 43 + 1) # Corresponding to (3m, 60m) data series
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -567,6 +564,7 @@ class LiveWillRBband(WillRBband):
         if self.neutral_inv == 'auto':
             bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
             self.neutral_inv = bals[self.cfg['symbol'][0]]
+        self.trim_df = False
 
     def _live_tradelog_setup(self):
         bals = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
@@ -665,15 +663,17 @@ class LiveWillRBband(WillRBband):
 
         """
         symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
-        trade_status = self.exchange.order_status(symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
+        trade_status = self.exchange.order_status(
+            symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
         netliq_before = self._get_netliq(bals=bals_before)
         bals_after = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         netliq_after = self._get_netliq(bals=bals_after)
         book_side = 'bids' if trade_status['side'] == 'BUY' else 'asks'
+        pnl = self.exchange.futures_get_position_pnl(symbol=symbol)['realized']
         ts_trade = str(trade_status['timestamp'])
         ts_trade = f'{ts_trade[:10]}.{ts_trade[10:]}'
         row = (
-            ts_trade,
+            float(ts_trade),
             self.data[0].index[-1],
             trade_status['symbol'],
             trade_status['side'],
@@ -727,8 +727,6 @@ class LiveWillRBband(WillRBband):
         ]
         self.influxdb_client.write_trade(row_influx)
 
-        # Placeholder for write to InfluxDB
-
         # Send SMS
         round_to = 2
         prec = self.exchange._symbol_info[self.cfg['asset_type']][symbol]['lot_prec'].split('.')
@@ -744,7 +742,8 @@ class LiveWillRBband(WillRBband):
         SNS_call(msg=(
             f"{ts_trade[:10]}: {self.cfg['symbol'][0]},"
             f" p: {round(trade_status['price'], round_to)}, {hurdle_str}"
-            f" s: {round(float(trade_status['quantity']), 5)}, {position_action},"
+            f" sz: {round(float(trade_status['quantity']), 5)}, {position_action},"
+            f" pnl: {round(pnl, 2)},"
             f" nl: {round(float(netliq_after), 2)}"))
 
     def _live_trade_size(self, params):
@@ -897,7 +896,61 @@ class LiveWillRBband(WillRBband):
             usdt_netliq = bals[self.cfg['symbol'][1]]
             return tkn_netliq + usdt_netliq
         elif self.cfg['asset_type'] == 'futures':
-            return self.exchange._futures_get_balances()['totalMarginBalance']
+            if self.cfg['futures_margin_type'] == 'usdt':
+                return self.exchange._futures_get_balances()['totalMarginBalance']
+            elif self.cfg['futures_margin_type'] == 'token':
+                raise NotImplementedError
+            else:
+                raise ValueError
+
+    def _live_pre_check(self, side, target_slpg=None, target_size=None):
+        """
+        Check of OB depth and account bals
+
+        Run this prior to order execution to make sure conditions are suffice
+
+		Arguments
+		---------
+		side (str):         '   BUY' or 'SELL'
+        target_slpg (flt):      Desired slippage (in %), at which check will fail
+        target_size (flt):      Order size (in token), ""
+
+		Returns
+		---------
+		(bool, bool) (tuple):   target_slpg, target_size check results
+
+        """
+        symbol = self.cfg['symbol'][0] + self.cfg['symbol'][1]
+        ob_snapshot = None
+        ob_avg_price = None
+        if self.cfg['asset_type'] == 'spot':
+            raise NotImplementedError
+        elif self.cfg['asset_type'] == 'futures':
+            slpg_chk = False
+            bals_chk = False
+            if not target_slpg is None:
+                bq_results = book_query(
+                    symbol, self.cfg['max_trade_size'], side=side,
+                    asset_type='futures', client=self.exchange, return_book=True)
+                ob_snapshot = bq_results[5]
+                ob_avg_price = bq_results[3]
+                if bq_results[0] and bq_results[4] < target_slpg:
+                    slpg_chk = True
+            if not target_size is None:
+                if ob_snapshot is None:
+                    ob_snapshot = self.exchange.get_book(
+                        symbol=symbol, depth=100, asset_type='futures')
+                if ob_avg_price is None:
+                    if side == 'BUY':
+                        _side = 'bids'
+                    elif side == 'SELL':
+                        _side = 'asks'
+                    ob_avg_price = float(ob_snapshot[_side][0][0])
+                margin_bal = float(
+                    self.exchange._futures_get_balances()['totalMarginBalance'])
+                if margin_bal > target_size*ob_avg_price:
+                    bals_chk = True
+        return slpg_chk, bals_chk
 
     def _place_live_order(self, params):
         """
@@ -912,6 +965,7 @@ class LiveWillRBband(WillRBband):
         if self.cfg['asset_type'] == 'spot':
             order_id = self.exchange.place_order(symbol, params[4], size)
         elif self.cfg['asset_type'] == 'futures':
+            self.exchange.futures_change_initial_leverage(symbol, self.cfg['margin_level'])
             if params[2] == 'Open':
                 order_id = self.exchange.futures_place_order(symbol, params[4], size)
             elif params[2] == 'Close':
@@ -923,8 +977,26 @@ class LiveWillRBband(WillRBband):
         position_action = f'{params[1].lower()}_{params[2].lower()}'
         accting_args = (order_id, bals, size, position_action, params[3], params[5])
         self._live_accounting(*accting_args)
-        order_status = self.exchange.order_status(symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
+        order_status = self.exchange.order_status(
+            symbol=symbol, order_id=order_id, asset_type=self.cfg['asset_type'])
         self.last_order = (order_status, bals, size, position_action)
+
+    def _trim_df(self):
+        """
+        Trim the dataframes to only the length needed to calc signals
+
+        """
+        lookback = max(
+            self.MAX_PERIODS[0]*self.cfg['series'][0][-1],
+            self.MAX_PERIODS[1]*self.cfg['series'][1][-1])
+        start_index = self.data[0].index[-1] - lookback
+        while True:
+            # Push back start_index to align on longer candle period
+            if start_index % self.cfg['series'][1][-1] == 0:
+                break
+            start_index -= self.cfg['series'][0][-1]
+        self.data[0] = self.data[0].loc[start_index:]
+        #self.data[1] = self.data[1].loc[start_index:]
 
     def run(self):
         if self.cfg['floating_willr']:
@@ -945,6 +1017,9 @@ class LiveWillRBband(WillRBband):
             self.cfg['series'][0][2] - (
                 dt.datetime.utcnow().timestamp() % self.cfg['series'][0][2]))
 
+        if self.debug:
+            self.data[0].to_csv(f'logs/debug/live_table.csv')
+
         while True:
             # Periodically update candles from API
             if self._get_latest_candle(0): # Adds 3m candles
@@ -954,6 +1029,8 @@ class LiveWillRBband(WillRBband):
                     now = dt.datetime.utcnow().timestamp()
                     self.logger.info(f"{now}: {self.cfg['series'][1][1]} candle fetched")
 
+                if self.trim_df:
+                    self._trim_df()
                 if self.cfg['floating_willr']:
                     self._create_floating_ohlc()
                 self.preprocess_data()
@@ -966,11 +1043,11 @@ class LiveWillRBband(WillRBband):
                 self.logger.info(f'{dt.datetime.utcnow().timestamp()}:New row:\n{row}')
                 self._on_new_candle(row)
                 self.logger.info(f"Next candle in {next_candle_secs()}s")
-                self.data[0].to_csv(f'logs/live_table.csv') ### tmp
+                if self.debug:
+                    self.data[0].to_csv(f'logs/debug/live_table.csv')
             else:
                 time.sleep(1)
                 if int(str(int(dt.datetime.utcnow().timestamp()))[-1]) % 9 == 0:
                     now = dt.datetime.utcnow().timestamp()
                     remaining = self.cfg['series'][0][2] - now % self.cfg['series'][0][2]
                     self.logger.debug(f"Next candle in {next_candle_secs()}s")
-

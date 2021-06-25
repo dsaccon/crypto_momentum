@@ -10,6 +10,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 import btalib
 
+from dotenv import load_dotenv
+from sqlalchemy.sql import text
+from sqlalchemy import create_engine
+
 from .willr_bband import WillRBband, LiveWillRBband
 
 from utils.sns import SNS_call
@@ -707,30 +711,30 @@ class WillRBbandEvo(WillRBband):
         return False
 
     def table_to_postgres(self):
-        #get postprocess 
+        #get postprocess
         df_pp = pd.read_csv('logs/postprocess.csv',sep='\s*,\s*', engine = 'python')
         #keep only relevant columns
-        # cols_of_interest = ['datetime',
-        # 	                'open',
-        #                     'high',
-        #                     'low',
-        #                     'close',
-        #                     'volume',
-        #                     'bband_20_low',
-        #                     'bband_20_high',
-        #                     'bband_20_mid',	
-        #                     'willr_ema',
-        #                     'willr_ema_prev',
-        #                     'willr_60m_float',
-        #                     'willr_ema_60m_float',
-        #                     'willr_ema_prev_60m_float',
-        #                     'crossover:close-bband_20_low',	
-        #                     'crossover:close-bband_20_high',
-        #                     'crossunder:close-bband_20_high',	
-        #                     'crossunder:close-bband_20_low]'
-        #                     ]
-        # df_pp = df_pp[cols_of_interest]
-        #get trades 
+        cols_of_interest = ['datetime',
+        	                'open',
+                            'high',
+                            'low',
+                            'close',
+                            'volume',
+                            'bband_20_low',
+                            'bband_20_high',
+                            'bband_20_mid',
+                            'willr_ema',
+                            'willr_ema_prev',
+                            'willr_60m_float',
+                            'willr_ema_60m_float',
+                            'willr_ema_prev_60m_float',
+                            'crossover:close-bband_20_low',
+                            'crossover:close-bband_20_high',
+                            'crossunder:close-bband_20_high',
+                            'crossunder:close-bband_20_low'
+                            ]
+        df_pp = df_pp[cols_of_interest]
+        #get trades
         df_trades= pd.read_csv('logs/backtesting_trades.csv',sep='\s*,\s*', engine = 'python')
         #create column 'datetime' in df_trades to later merge with df_pp
         df_trades['datetime'] = df_trades['time_candle']
@@ -741,14 +745,133 @@ class WillRBbandEvo(WillRBband):
         last_index = df_trades.apply(pd.Series.last_valid_index)['symbol']
         df_trades = df_trades.loc[last_index:,:]
         df_trades.index =range(len(df_trades))
-        #join postprocess and trades 
-        dfmerged = pd.merge(df_trades, df_pp, on = 'datetime', how = 'outer')
-        dfmerged = dfmerged.sort_values(by=['datetime'])
-        dfmerged = dfmerged[:-1]
-        
-        #write to csv 
-        dfmerged.to_csv('logs/df_merged.csv')
-        #csv to postgres 
+
+        #join postprocess and trades
+        df_merged = pd.merge(df_trades, df_pp, on = 'datetime', how = 'outer')
+        df_merged = df_merged.sort_values(by=['datetime'])
+        df_merged = df_merged[:-1]
+        df_merged = df_merged.reset_index(drop=True)
+
+        #df_merged.to_csv('logs/df_merged_pre.csv')
+
+        #get running token_position upl, rpl, equity
+        #created all new columns with initial value 0
+        df_merged['token_position'] = 0
+        df_merged['equity']=self.cfg['start_capital']
+        df_merged['upl'] = 0
+        df_merged['rpl'] = 0
+        df_merged['fees'] = 0
+        open_size = 0
+        last_pos = 0
+        last_settled_bal = self.cfg['start_capital']
+        fee = .0004 #change to cfg
+        token_position_list = [0]
+        upl_list=[0]
+        rpl_list = [0]
+        equity_list = [0]
+
+        for i in range(1, len(df_merged)):
+            position = df_merged.loc[i,'position']
+            action = df_merged.loc[i,'action']
+            price = df_merged.loc[i,'price']
+            equity = df_merged.loc[i,'equity']
+            close = df_merged.loc[i, 'close']
+
+            if action == 'Open':
+                if position == 'Long':
+                    token_pos_i = round(last_settled_bal/price + last_pos,5)
+                    open_size = token_pos_i
+                    last_pos = open_size
+                    open_price = price
+                    fees_i = -abs(open_size*price*fee)
+                elif position == 'Short':
+                    token_pos_i = round(-last_settled_bal/price + last_pos,5)
+                    open_size = token_pos_i
+                    last_pos = open_size
+                    open_price = price
+                    fees_i = -abs(open_size*price*fee)
+            elif action == 'Close':
+                token_pos_i = -open_size + last_pos
+                last_pos = 0
+                fees_i = -abs(open_size*price*fee)
+                #print ('CLOSE', open_size, price, fee, fees_i)
+                #time.sleep(30)
+            elif pd.isnull(action):
+                token_pos_i = last_pos
+                fees_i = 0
+
+            #get upl
+            if token_pos_i != 0:
+                upl_i = (close - open_price)*open_size
+            else:
+                upl_i = 0
+
+            #get rpl
+            if action == 'Close':
+                rpl_i = (close - open_price)*open_size
+            else:
+                rpl_i = 0
+
+            #get equity
+            equity_i = last_settled_bal + upl_i + rpl_i + fees_i
+            if action == 'Close':
+                last_settled_bal = equity_i
+            if action == 'Open':
+                last_settled_bal = equity_i
+
+            token_position_list.append(token_pos_i)
+            upl_list.append(upl_i)
+            rpl_list.append(rpl_i)
+            equity_list.append(equity_i)
+
+        #input lists into columns of df
+        df_merged['token_position'] = token_position_list
+        df_merged['upl'] = upl_list
+        df_merged['rpl'] = rpl_list
+        df_merged['equity'] = equity_list
+        #df_merged.to_csv('WIP.csv')
+
+        #write to csv
+        df_merged.to_csv('logs/df_merged.csv')
+
+        #csv to postgres
+
+    def upload_to_postgres(self):
+
+        user = 'postgres'
+        password = 'xyz'
+        host = 'xyz'
+        port ='xyz'
+        dbname ='xyz'
+        upload_file_name = 'df_merged.csv'
+        #table_name identifies BT run. timenow_token
+        bt_time_ran = time.time()
+        table_name = bt_time_ran + + self.cfg['symbol'][0]
+        print ('table name', table_name)
+
+
+        dbUrl = f"""postgresql://{user}:{password}@{host}:{port}/{dbname}"""
+        print(dbUrl)
+        engine = create_engine(dbUrl)
+        data_frame = pd.read_csv(upload_file_name)
+        data_frame['ts'] = pd.to_datetime(data_frame['ts'], unit='s')
+        data_frame.rename(columns={'Unnamed: 0': 'index'}, inplace=True)
+        data_frame.to_sql(
+            table_name,
+            engine,
+            index=False,
+            if_exists='append',
+            chunksize=1000
+        )
+        print("Successfully uploaded the data")
+        try:
+            query = f"""SELECT create_hypertable('{table_name}', 'ts' ,chunk_time_interval => INTERVAL '1 day',migrate_data => true, if_not_exists => true);"""
+            with engine.connect() as connection:
+                result = connection.execute(text(query).execution_options(autocommit=True))
+                for row in result:
+                    print(row[0])
+        except:
+            print("but failed to create hypertable")
 
 
 class LiveWillRBbandEvo(LiveWillRBband, WillRBbandEvo):
