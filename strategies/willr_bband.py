@@ -129,6 +129,8 @@ class WillRBband(BacktestingBaseClass):
         # For Short close
         self.get_crosses('close', 'bband_20_low', i, over=False)
 
+        self.data[0].to_csv(f'logs/postprocess.csv') ### tmp
+
     def _create_floating_willr(self):
         ### Build floating willr/willr_ema indicators
         modulo = int(self.cfg['series'][1][-1])
