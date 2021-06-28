@@ -552,6 +552,7 @@ class WillRBband(BacktestingBaseClass):
 #        write_s3(plt_file, bkt=self.s3_bkt_name)
 
         self.table_to_postgres()
+        self.upload_to_postgres()
 
 class LiveWillRBband(WillRBband):
 

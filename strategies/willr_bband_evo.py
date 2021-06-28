@@ -75,6 +75,8 @@ class WillRBbandEvo(WillRBband):
         # For Short close
         self.get_crosses('close', 'bband_20_low', i, over=False)
 
+        self.data[0].to_csv(f'logs/postprocess.csv') ### tmp
+
     def _bband_only (self, row):
         """
         Modified trade logic.
@@ -839,14 +841,14 @@ class WillRBbandEvo(WillRBband):
     def upload_to_postgres(self):
 
         user = 'postgres'
-        password = 'xyz'
-        host = 'xyz'
-        port ='xyz'
-        dbname ='xyz'
-        upload_file_name = 'df_merged.csv'
+        password = 'backtesting'
+        host = 'ec2-44-234-65-8.us-west-2.compute.amazonaws.com'
+        port ='5432'
+        dbname ='backtesting'
+        upload_file_name = 'logs/df_merged.csv'
         #table_name identifies BT run. timenow_token
-        bt_time_ran = time.time()
-        table_name = bt_time_ran + + self.cfg['symbol'][0]
+        bt_time_ran = int(time.time())
+        table_name = str(bt_time_ran) + '_' + str(self.cfg['symbol'][0])
         print ('table name', table_name)
 
 
@@ -854,7 +856,7 @@ class WillRBbandEvo(WillRBband):
         print(dbUrl)
         engine = create_engine(dbUrl)
         data_frame = pd.read_csv(upload_file_name)
-        data_frame['ts'] = pd.to_datetime(data_frame['ts'], unit='s')
+        #data_frame['ts'] = pd.to_datetime(data_frame['ts'], unit='s')
         data_frame.rename(columns={'Unnamed: 0': 'index'}, inplace=True)
         data_frame.to_sql(
             table_name,
@@ -865,7 +867,7 @@ class WillRBbandEvo(WillRBband):
         )
         print("Successfully uploaded the data")
         try:
-            query = f"""SELECT create_hypertable('{table_name}', 'ts' ,chunk_time_interval => INTERVAL '1 day',migrate_data => true, if_not_exists => true);"""
+            query = f"""SELECT create_hypertable('{table_name}', 'datetime' ,chunk_time_interval => INTERVAL '1 day',migrate_data => true, if_not_exists => true);"""
             with engine.connect() as connection:
                 result = connection.execute(text(query).execution_options(autocommit=True))
                 for row in result:
