@@ -105,7 +105,7 @@ class LiveTrader(Base):
         for tkn in tokens:
             symb = f'{tkn}USDT'
             posn = self.exchange_obj.futures_get_positions(symbol=symb)
-            if float(posn['positionAmt']) > 0:
+            if abs(float(posn['positionAmt'])) > 0:
                 print(f'{tkn} - Closing position')
                 self.exchange_obj.futures_close_position(symbol=symb)
             else:
