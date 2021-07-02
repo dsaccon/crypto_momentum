@@ -588,7 +588,8 @@ class LiveWillRBband(WillRBband):
             'netliq_before',
             'netliq_after',
             'margin_bal_before',
-            'margin_bal_after')
+            'margin_bal_after',
+            'pnl')
         self.live_tradelog_cols = cols
         if self.cfg['asset_type'] == 'spot':
             netliq = self._get_netliq()
@@ -603,7 +604,7 @@ class LiveWillRBband(WillRBband):
                 + tuple(('' for _ in cols[3:-6])) + (
                     bals.get(self.cfg['symbol'][0]), '',
                     bals.get(self.cfg['symbol'][1]), '',
-                    netliq, netliq, margin_bal, margin_bal))
+                    netliq, netliq, margin_bal, margin_bal, ''))
         write_mode = 'a'
         if not os.path.isfile('logs/live_trades.csv'):
             write_mode = 'w'
@@ -667,7 +668,12 @@ class LiveWillRBband(WillRBband):
         bals_after = self.exchange.get_balances(asset_type=self.cfg['asset_type'])
         netliq_after = self._get_netliq(bals=bals_after)
         book_side = 'bids' if trade_status['side'] == 'BUY' else 'asks'
-        pnl = self.exchange.futures_get_position_pnl(symbol=symbol)['realized']
+        if self.cfg['asset_type'] == 'futures':
+            pnl = self.exchange.futures_get_position_pnl(symbol=symbol)['realized']
+        elif self.cfg['asset_type'] == 'spot':
+            pnl = 0 # Placeholder. WIP
+        else:
+            raise ValueError
         ts_trade = str(trade_status['timestamp'])
         ts_trade = f'{ts_trade[:10]}.{ts_trade[10:]}'
         row = (
@@ -692,7 +698,8 @@ class LiveWillRBband(WillRBband):
             netliq_before,
             netliq_after,
             '',
-            '')
+            '',
+            pnl)
 
         trades_logfile = 'logs/live_trades.csv'
         with open(trades_logfile, 'a', newline='') as f:
@@ -722,6 +729,7 @@ class LiveWillRBband(WillRBband):
             float(row[19]),
             row[20],
             row[21],
+            row[22],
         ]
         self.influxdb_client.write_trade(row_influx)
 
