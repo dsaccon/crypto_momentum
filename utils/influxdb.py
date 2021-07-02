@@ -65,6 +65,7 @@ class InfluxDBClient:
                     'netliq_after': row[19],
                     'margin_bal_before': row[20],
                     'margin_bal_after': row[21],
+                    'pnl': row[22],
                 }
             }
         ]
