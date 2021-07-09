@@ -60,7 +60,7 @@ asset = 'futures'
 if asset == 'spot':
     fee = .00075
 elif asset == 'futures':
-    fee = .0004
+    fee = .00036
 
 
 #analyze from user-defined startdate

@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils.influxdb import InfluxDBClient
 import btalib
+import talib
 
 from utils.s3 import write_s3
 
@@ -51,6 +52,8 @@ class WillRBband(BacktestingBaseClass):
         bt_params = ' asset_type:' + self.cfg['asset_type'] + \
                     ' strategy:'   + self.cfg['strategy'] + \
                     ' execution_name:' + self.cfg['execution_name'] + \
+                    ' fast_per:' + self.cfg['series'][0][1] + \
+                    ' slow_per:' + self.cfg['series'][1][1] + \
                     ' willr_ema_per:' + str(self.cfg['willr_ema_period']) + \
                     ' bband_per:' + str(self.cfg['bband_period']) + \
                     ' bband_devs:' + str(self.cfg['bband_devs']) + \
@@ -109,6 +112,20 @@ class WillRBband(BacktestingBaseClass):
         self.data[i]['bband_20_high_prev'] = self.data[i]['bband_20_high'].shift(1)
         self.data[i]['close_prev'] = self.data[i]['close'].shift(1)
 
+        #other TA indicators
+        #rsi, chaikin oscillator
+        self.data[i]['rsi'] = talib.RSI(self.data[i]['close'], timeperiod = 14)
+        self.data[i]['chaikin_osc'] = talib.ADOSC(self.data[i]['high'], self.data[i]['low'], self.data[i]['close'], self.data[i]['volume'], fastperiod=3, slowperiod=10)
+        self.data[i]['macd'], self.data[i]['macdsignal'], self.data[i]['macdhist'] = talib.MACD(self.data[i]['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+
+        #lookback
+        self.data[i]['close_prev_lb'] = self.data[i]['close'].shift(self.cfg['lb_period'])
+        self.data[i]['lb_chg'] = round((self.data[i]['close'] - self.data[i]['close_prev_lb'])/self.data[i]['close_prev_lb'],4)
+        
+        
+        #bband range as volatility indicator, ie (bbandhigh-bbandlow)/close
+        self.data[i]['bband_range_perc'] = (self.data[i]['bband_20_high'] - self.data[i]['bband_20_low'])/self.data[i]['close']
+        
         # Upsample longer interval series to dataframe at index=0
         modulo = int(self.cfg['series'][1][-1])
         for _i, row in self.data[0].iterrows():

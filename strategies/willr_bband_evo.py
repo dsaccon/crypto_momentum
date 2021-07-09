@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import btalib
+import talib
 
 from dotenv import load_dotenv
 from sqlalchemy.sql import text
@@ -42,12 +43,25 @@ class WillRBbandEvo(WillRBband):
         # ..load 3m data
         i = 0
         self.data[i]['bband_20_low'] = btalib.bbands(self.data[i]['close'], period = self.cfg['bband_period'], devs = self.cfg['bband_devs']).bot #orig 20, 2.3
-
         self.data[i]['bband_20_low_prev'] = self.data[i]['bband_20_low'].shift(1)
         self.data[i]['bband_20_high'] = btalib.bbands(self.data[i]['close'], period = self.cfg['bband_period'], devs = self.cfg['bband_devs']).top
         self.data[i]['bband_20_high_prev'] = self.data[i]['bband_20_high'].shift(1)
         self.data[i]['close_prev'] = self.data[i]['close'].shift(1)
         self.data[i]['bband_20_mid'] = (self.data[i]['bband_20_low'] + self.data[i]['bband_20_high'])/2
+
+        #other TA indicators
+        #self.data[i]['rsi'] = btalib.rsi(self.data[i]['close'], period = 14).df
+        self.data[i]['rsi'] = talib.RSI(self.data[i]['close'], timeperiod = 14)
+        self.data[i]['chaikin_osc'] = talib.ADOSC(self.data[i]['high'], self.data[i]['low'], self.data[i]['close'], self.data[i]['volume'], fastperiod=3, slowperiod=10)
+        self.data[i]['macd'], self.data[i]['macdsignal'], self.data[i]['macdhist'] = talib.MACD(self.data[i]['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+
+        #lookback
+        self.data[i]['close_prev_lb'] = self.data[i]['close'].shift(self.cfg['lb_period'])
+        self.data[i]['lb_chg'] = round((self.data[i]['close'] - self.data[i]['close_prev_lb'])/self.data[i]['close_prev_lb'],4)
+
+
+        #bband range as volatility indicator, ie (bbandhigh-bbandlow)/close
+        self.data[i]['bband_range_perc'] = (self.data[i]['bband_20_high'] - self.data[i]['bband_20_low'])/self.data[i]['close']
 
         # Upsample longer interval series to dataframe at index=0
         modulo = int(self.cfg['series'][1][-1])
@@ -723,13 +737,22 @@ class WillRBbandEvo(WillRBband):
                             'close',
                             'volume',
                             'bband_20_low',
+                            'bband_20_low_prev',
                             'bband_20_high',
+                            'bband_20_high_prev',
                             'bband_20_mid',
+                            'rsi',
+                            'chaikin_osc',
+                            'macd',
+                            'macdsignal',
+                            'macdhist',
+                            'lb_chg',
+                            'bband_range_perc',
                             'willr_ema',
                             'willr_ema_prev',
-                            'willr_60m_float',
-                            'willr_ema_60m_float',
-                            'willr_ema_prev_60m_float',
+                            'willr_' + str(self.cfg['series'][1][1]) + '_float',
+                            'willr_ema_' + str(self.cfg['series'][1][1]) + '_float',
+                            'willr_ema_prev_' + str(self.cfg['series'][1][1]) + '_float',
                             'crossover:close-bband_20_low',
                             'crossover:close-bband_20_high',
                             'crossunder:close-bband_20_high',
@@ -855,7 +878,8 @@ class WillRBbandEvo(WillRBband):
         dbUrl = f"""postgresql://{user}:{password}@{host}:{port}/{dbname}"""
         print(dbUrl)
         engine = create_engine(dbUrl)
-        data_frame = pd.read_csv(upload_file_name)
+        dtype_dict = {'position':str,'action':str}
+        data_frame = pd.read_csv(upload_file_name, dtype=dtype_dict)
         #data_frame['ts'] = pd.to_datetime(data_frame['ts'], unit='s')
         data_frame.rename(columns={'Unnamed: 0': 'index'}, inplace=True)
         data_frame.to_sql(
