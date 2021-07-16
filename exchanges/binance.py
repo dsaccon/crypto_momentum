@@ -115,6 +115,7 @@ class BinanceAPI(ExchangeAPI):
             info['price_prec'] = s['filters'][i_pr]['tickSize'].rstrip('0')
         return info
 
+    @meta(wait=1)
     def _get_symbol_info(self):
         info = {}
         for atype in ('spot', 'futures'):
@@ -122,31 +123,9 @@ class BinanceAPI(ExchangeAPI):
             symbols = self._get_exchange_info(asset_type=atype)['symbols']
             for s in symbols:
                 info[atype][s['symbol']] = __class__._symbol_parser(s)
-            #            key = s['symbol']
-            #            _info[key] = {}
-            #            i_lot = [
-            #                i for i,f in enumerate(s['filters'])
-            #                if f['filterType'] == 'LOT_SIZE'
-            #            ]
-            #            i_lot = i_lot[0] if not i_lot == [] else None
-            #            i_pr = [
-            #                i for i,f in enumerate(s['filters'])
-            #                if f['filterType'] == 'PRICE_FILTER'
-            #            ]
-            #            i_pr = i_pr[0] if not i_pr == [] else None
-            #            if not i_lot is None:
-            #                _info[key]['lot_min'] = s['filters'][i_lot]['minQty'].rstrip('0')
-            #                _info[key]['lot_prec'] = s['filters'][i_lot]['stepSize'].rstrip('0')
-            #            if not i_pr is None:
-            #                _info[key]['price_min'] = s['filters'][i_pr]['minPrice'].rstrip('0')
-            #                _info[key]['price_prec'] = s['filters'][i_pr]['tickSize'].rstrip('0')
-#        info = {'spot': _info}
-#        symbols = self._get_exchange_info(asset_type='futures')['symbols']
-#        for s in symbols:
-#            key = s['symbol']
-#            _info[key] = {}
         return info
 
+    @meta(wait=1)
     def _get_trade_fees(self):
         futures_tiers = {
             0: {'maker': 0.00020, 'taker': 0.00040},
@@ -159,18 +138,31 @@ class BinanceAPI(ExchangeAPI):
             7: {'maker': 0.00004, 'taker': 0.00022},
             'none': {}
         }
+#        spot_tiers = {
+#            0: {'maker': 0.0010, 'taker': 0.0010},
+#            1: {'maker': 0.0009, 'taker': 0.0010},
+#            2: {'maker': 0.0008, 'taker': 0.0010},
+#            3: {'maker': 0.0007, 'taker': 0.0010},
+#            4: {'maker': 0.0007, 'taker': 0.00090},
+#            5: {'maker': 0.0006, 'taker': 0.00080},
+#            6: {'maker': 0.0005, 'taker': 0.00070},
+#            7: {'maker': 0.0004, 'taker': 0.00060},
+#            8: {'maker': 0.0003, 'taker': 0.00050},
+#            9: {'maker': 0.0002, 'taker': 0.00040},
+#            'none': {'maker': 0.0010, 'taker': 0.0010},
+#        }
         spot_tiers = {
-            0: {'maker': 0.0010, 'taker': 0.0010},
-            1: {'maker': 0.0009, 'taker': 0.0010},
-            2: {'maker': 0.0008, 'taker': 0.0010},
-            3: {'maker': 0.0007, 'taker': 0.0010},
-            4: {'maker': 0.0007, 'taker': 0.00090},
-            5: {'maker': 0.0006, 'taker': 0.00080},
-            6: {'maker': 0.0005, 'taker': 0.00070},
-            7: {'maker': 0.0004, 'taker': 0.00060},
-            8: {'maker': 0.0003, 'taker': 0.00050},
-            9: {'maker': 0.0002, 'taker': 0.00040},
-            'none': {'maker': 0.0010, 'taker': 0.0010},
+            0: {'makerCommission': 0.0010, 'takerCommission': 0.0010},
+            1: {'makerCommission': 0.0009, 'takerCommission': 0.0010},
+            2: {'makerCommission': 0.0008, 'takerCommission': 0.0010},
+            3: {'makerCommission': 0.0007, 'takerCommission': 0.0010},
+            4: {'makerCommission': 0.0007, 'takerCommission': 0.00090},
+            5: {'makerCommission': 0.0006, 'takerCommission': 0.00080},
+            6: {'makerCommission': 0.0005, 'takerCommission': 0.00070},
+            7: {'makerCommission': 0.0004, 'takerCommission': 0.00060},
+            8: {'makerCommission': 0.0003, 'takerCommission': 0.00050},
+            9: {'makerCommission': 0.0002, 'takerCommission': 0.00040},
+            'none': {'makerCommission': 0.0010, 'takerCommission': 0.0010},
         }
         spot_symbols = (
             s['symbol']
@@ -180,7 +172,7 @@ class BinanceAPI(ExchangeAPI):
             s['symbol']
             for s in self._get_exchange_info(asset_type='futures')['symbols']
         )
-        if self._external_client:
+        if not self._external_client is None:
             tier = self._external_client.futures_account().get('feeTier')
             fees = {
                 'tradeFee': self._external_client.get_trade_fee()
