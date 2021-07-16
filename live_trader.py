@@ -56,6 +56,9 @@ class LiveTrader(Base):
         argp.add_argument(
             "-d", "--debug", action='store_true', help="Debug mode. Print tables to csvs in logs/debug/ folder"
         )
+        argp.add_argument(
+            "--test-mode", action='store_true', help="Run all normally, except do not place orders or do accounting"
+        )
         args = argp.parse_args()
         return args
 
@@ -125,7 +128,7 @@ class LiveTrader(Base):
             raise DataCollectionError
         self.strategy(
             self.df, self.exchange_obj,
-            self.trading_cfg, debug=self.args.debug).run()
+            self.trading_cfg, debug=self.args.debug, live_test_mode=self.args.test_mode).run()
 
 
 def test_setup():
