@@ -57,6 +57,9 @@ class WillRBbandEvo(WillRBband):
         if self.cfg['floating_willr']:
             self._create_floating_willr()
 
+        if self.trim_df:
+            self._update_emas()
+
         i = 0
         # For Long entry
         self.get_crosses('close', 'bband_20_low', i)
