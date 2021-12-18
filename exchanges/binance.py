@@ -708,6 +708,11 @@ class BinanceAPI(ExchangeAPI):
         resp = self._external_client.futures_account()
         return resp
 
+    def futures_get_margin_balance(self, asset='USDT'):
+        account = self._external_client.futures_account()
+        asset_acct = [a for a in account['assets'] if a['asset'] == asset][0]
+        return float(asset_acct['availableBalance'])
+
     @meta(wait=1)
     def futures_order_status(self, symbol='BTCUSDT', order_id=None):
         if order_id is None:
@@ -864,3 +869,4 @@ class BinanceAPI(ExchangeAPI):
     # ...wip
     def futures_account(self):
         bals = self._external_client.futures_account()
+        return bals
